@@ -1,0 +1,336 @@
+/* ---------------------------------------------------------------
+   kit.js — shared helpers every game uses.
+   Keep game files short by putting anything reusable in here.
+   --------------------------------------------------------------- */
+
+import { T } from './text.js';
+
+/* ---------- random ---------- */
+
+export const randInt = (min, max) => min + Math.floor(Math.random() * (max - min + 1));
+export const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+export const range = (n, from = 0) => Array.from({ length: n }, (_, i) => i + from);
+
+export function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/** Pick `n` distinct items from `arr`. */
+export function sample(arr, n) {
+  return shuffle(arr).slice(0, n);
+}
+
+/**
+ * Build a choice list: the answer plus distractors drawn from `pool`,
+ * shuffled. Distractors never equal the answer.
+ */
+export function choicesFor(answer, pool, count = 3, key = (x) => x) {
+  const others = sample(pool.filter((x) => key(x) !== key(answer)), count - 1);
+  return shuffle([answer, ...others]);
+}
+
+/* ---------- tiny DOM helper ---------- */
+
+export function el(tag, props = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') node.className = v;
+    else if (k === 'text') node.textContent = v;
+    else if (k === 'html') node.innerHTML = v;
+    // Custom properties (--c1) need setProperty; Object.assign silently drops them.
+    else if (k === 'style') {
+      for (const [prop, val] of Object.entries(v)) {
+        if (prop.startsWith('--')) node.style.setProperty(prop, val);
+        else node.style[prop] = val;
+      }
+    }
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (v !== null && v !== undefined && v !== false) node.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) {
+    if (kid === null || kid === undefined || kid === false) continue;
+    node.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  }
+  return node;
+}
+
+export const clear = (node) => { while (node.firstChild) node.removeChild(node.firstChild); };
+
+/* ---------- speech ---------- */
+/* Android ships an on-device TTS engine, so this keeps working offline.
+   Voices load asynchronously, hence the lazy lookup + retry. */
+
+const HAS_TTS = typeof window !== 'undefined' && 'speechSynthesis' in window;
+
+let defaultLang = 'he';
+const voiceCache = new Map(); // lang -> SpeechSynthesisVoice | null
+
+function voiceFor(lang) {
+  if (voiceCache.has(lang)) return voiceCache.get(lang);
+  if (!HAS_TTS) return null;
+  const all = speechSynthesis.getVoices();
+  if (!all.length) return null; // not loaded yet — try again next time
+  const match =
+    all.find((v) => v.lang.toLowerCase().startsWith(lang) && v.localService) ||
+    all.find((v) => v.lang.toLowerCase().startsWith(lang)) ||
+    null;
+  voiceCache.set(lang, match);
+  return match;
+}
+
+if (HAS_TTS) speechSynthesis.addEventListener('voiceschanged', () => voiceCache.clear());
+
+/** Language used when speak() isn't given one. */
+export function setSpeechLang(lang) {
+  defaultLang = String(lang || 'he').toLowerCase().slice(0, 2);
+}
+
+/** True if the device has a voice for this language installed. */
+export const hasVoice = (lang = defaultLang) => Boolean(voiceFor(lang));
+
+/**
+ * Speak `text` out loud. Silently does nothing if TTS is unavailable —
+ * every prompt is on screen as text too, so nothing is lost.
+ */
+export function speak(text, { rate = 0.9, pitch = 1.1, interrupt = true, lang } = {}) {
+  if (!HAS_TTS || !text) return;
+  try {
+    if (interrupt) speechSynthesis.cancel();
+    const code = (lang || defaultLang).toLowerCase().slice(0, 2);
+    const voice = voiceFor(code);
+    const u = new SpeechSynthesisUtterance(String(text));
+    u.rate = rate;
+    u.pitch = pitch;
+    if (voice) u.voice = voice;
+    u.lang = voice ? voice.lang : code;
+    speechSynthesis.speak(u);
+  } catch { /* TTS is a nice-to-have, never fatal */ }
+}
+
+export const stopSpeech = () => { try { speechSynthesis.cancel(); } catch {} };
+
+/* ---------- sound effects (generated, no audio files) ---------- */
+
+let ac = null;
+const audio = () => (ac ||= new (window.AudioContext || window.webkitAudioContext)());
+
+function tone(freq, start, dur, { type = 'sine', gain = 0.18 } = {}) {
+  try {
+    const ctx = audio();
+    if (ctx.state === 'suspended') ctx.resume();
+    const osc = ctx.createOscillator();
+    const amp = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const t0 = ctx.currentTime + start;
+    amp.gain.setValueAtTime(0.0001, t0);
+    amp.gain.exponentialRampToValueAtTime(gain, t0 + 0.015);
+    amp.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(amp).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  } catch { /* audio blocked before first gesture — ignore */ }
+}
+
+export const sfx = {
+  tap:     () => tone(520, 0, 0.07, { type: 'triangle', gain: 0.08 }),
+  correct: () => { tone(660, 0, 0.13); tone(880, 0.1, 0.2); },
+  wrong:   () => tone(180, 0, 0.22, { type: 'sawtooth', gain: 0.09 }),
+  win:     () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.11, 0.3)),
+};
+
+export const vibrate = (ms = 18) => { try { navigator.vibrate?.(ms); } catch {} };
+
+/* ---------- confetti ---------- */
+
+export function celebrate(count = 60) {
+  const layer = el('div', { class: 'confetti' });
+  const colors = ['#ffd23f', '#37d67a', '#7c5cff', '#ff5c6c', '#4cc9f0', '#f72585'];
+  for (let i = 0; i < count; i++) {
+    layer.append(el('b', {
+      style: {
+        left: `${Math.random() * 100}%`,
+        top: `${-12 - Math.random() * 20}vh`,
+        background: pick(colors),
+        animationDuration: `${1.6 + Math.random() * 1.6}s`,
+        animationDelay: `${Math.random() * 0.5}s`,
+      },
+    }));
+  }
+  document.body.append(layer);
+  setTimeout(() => layer.remove(), 4200);
+}
+
+export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** The shared "you finished" card. Games that skip Round can use it too. */
+export function endCard(ctx, stars, msg, score = '🎉') {
+  return el('div', { class: 'result' },
+    el('div', { class: 'score', text: score }),
+    el('div', { class: 'stars-big', text: '★'.repeat(stars) + '☆'.repeat(3 - stars) }),
+    el('div', { class: 'msg', text: msg }),
+    el('div', { class: 'choices' },
+      el('button', { class: 'btn primary', onClick: () => ctx.replay() }, T.again),
+      el('button', { class: 'btn', onClick: () => ctx.exit() }, T.done),
+    ),
+  );
+}
+
+/* ---------------------------------------------------------------
+   Round — the engine behind most games.
+
+   A game supplies a `build(stage, api)` function that draws one round.
+   It calls api.ok() / api.no() to report the outcome. Round handles the
+   progress dots, feedback timing, scoring and the end screen.
+   --------------------------------------------------------------- */
+
+export class Round {
+  /**
+   * @param {HTMLElement} stage  where the round is drawn
+   * @param {object} ctx         host context ({ profile, finish, setProgress })
+   * @param {object} opts        { rounds, pauseOk, pauseNo, forgiving }
+   *
+   * `forgiving` (level-1 games): a wrong tap shakes and disables that one
+   * choice but the round stays open until they find the right answer, so a
+   * toddler never gets stuck on a fail screen. They just don't score the point.
+   */
+  constructor(stage, ctx, opts = {}) {
+    this.stage = stage;
+    this.ctx = ctx;
+    this.total = opts.rounds ?? 8;
+    this.pauseOk = opts.pauseOk ?? 800;
+    this.pauseNo = opts.pauseNo ?? 900;
+    this.forgiving = opts.forgiving ?? false;
+    this.index = 0;
+    this.score = 0;
+    this.results = [];
+    this.dead = false;
+  }
+
+  /** Start the loop. `build` is called once per round. */
+  start(build) {
+    this.build = build;
+    this.#next();
+  }
+
+  stop() { this.dead = true; stopSpeech(); }
+
+  #next() {
+    if (this.dead) return;
+    if (this.index >= this.total) return this.#end();
+    this.ctx.setProgress(this.results, this.total);
+    clear(this.stage);
+
+    let answered = false;
+    let missed = false;
+
+    const settle = async (won, node) => {
+      if (answered || this.dead) return;
+
+      // Forgiving mode: a wrong tap costs the point but not the round.
+      if (!won && this.forgiving) {
+        missed = true;
+        sfx.wrong();
+        vibrate([12, 60, 12]);
+        if (node) { node.classList.add('wrong'); node.disabled = true; }
+        return;
+      }
+
+      answered = true;
+      const credit = won && !missed;
+      if (won) {
+        if (credit) this.score++;
+        sfx.correct();
+        vibrate(16);
+        node?.classList.add('correct');
+      } else {
+        sfx.wrong();
+        vibrate([12, 60, 12]);
+        node?.classList.add('wrong');
+      }
+      this.results.push(credit);
+      this.ctx.setProgress(this.results, this.total);
+      this.stage.querySelectorAll('.choice').forEach((b) => (b.disabled = true));
+      await wait(won ? this.pauseOk : this.pauseNo);
+      this.index++;
+      this.#next();
+    };
+
+    this.build(this.stage, {
+      ok: (node) => settle(true, node),
+      no: (node) => settle(false, node),
+      /** Show the right answer after a wrong tap. No-op in forgiving mode,
+          where the point is to let them keep hunting for it themselves. */
+      reveal: (node) => { if (!this.forgiving) node?.classList.add('correct'); },
+      index: this.index,
+      total: this.total,
+      speak,
+    });
+  }
+
+  #end() {
+    clear(this.stage);
+    const pct = this.total ? this.score / this.total : 0;
+    const stars = pct >= 0.9 ? 3 : pct >= 0.7 ? 2 : pct >= 0.4 ? 1 : 0;
+    const msg = [T.tryAgain, T.goodTry, T.greatJob, T.perfect][stars];
+
+    if (stars >= 2) { celebrate(); sfx.win(); } else { sfx.correct(); }
+    speak(msg);
+
+    this.stage.append(endCard(this.ctx, stars, msg, `${this.score}/${this.total}`));
+    this.ctx.finish(stars);
+  }
+}
+
+/* ---------- shared content pools ---------- */
+
+export const ANIMALS = [
+  { emoji: '🐶', name: 'כלב', says: 'הב הב' },
+  { emoji: '🐱', name: 'חתול', says: 'מיאו' },
+  { emoji: '🐮', name: 'פרה', says: 'מוּ' },
+  { emoji: '🐸', name: 'צפרדע', says: 'קוואק קוואק' },
+  { emoji: '🦆', name: 'ברווז', says: 'גע גע' },
+  { emoji: '🐴', name: 'סוס', says: 'יהה' },
+  { emoji: '🐑', name: 'כבשה', says: 'מעע' },
+  { emoji: '🦁', name: 'אריה', says: 'רררר' },
+  { emoji: '🐘', name: 'פיל', says: 'טרוווו' },
+  { emoji: '🐵', name: 'קוף', says: 'אוו אוו אה אה' },
+  { emoji: '🐝', name: 'דבורה', says: 'זזזזז' },
+  { emoji: '🐓', name: 'תרנגול', says: 'קוקוריקו' },
+  { emoji: '🦉', name: 'ינשוף', says: 'הו הו' },
+  { emoji: '🐭', name: 'עכבר', says: 'ציק ציק' },
+  { emoji: '🐟', name: 'דג', says: 'בּול בּול' },
+];
+
+/* Adjectives are all masculine so they agree with "הצבע". */
+export const COLORS = [
+  { name: 'אדום', hex: '#ff4d4d' },
+  { name: 'כחול', hex: '#3d8bff' },
+  { name: 'צהוב', hex: '#ffd23f' },
+  { name: 'ירוק', hex: '#37d67a' },
+  { name: 'כתום', hex: '#ff9f1c' },
+  { name: 'סגול', hex: '#a06bff' },
+  { name: 'ורוד', hex: '#ff7ac4' },
+  { name: 'חום', hex: '#a4713d' },
+  { name: 'שחור', hex: '#2b2b3a' },
+  { name: 'לבן', hex: '#f2f2f7' },
+];
+
+export const SHAPES = [
+  { name: 'עיגול', emoji: '⭕' },
+  { name: 'ריבוע', emoji: '🟦' },
+  { name: 'משולש', emoji: '🔺' },
+  { name: 'כוכב', emoji: '⭐' },
+  { name: 'לב', emoji: '❤️' },
+  { name: 'מעוין', emoji: '🔷' },
+];
+
+export const FUN_EMOJI = [
+  '🍎', '🍌', '🚗', '⚽', '🌸', '🐟', '🎈', '🍪', '🌙', '🚀',
+  '🦋', '🍇', '🐠', '🎸', '🍕', '🐧', '🌈', '🦖', '🚂', '🧸',
+];

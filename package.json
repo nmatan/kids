@@ -1,0 +1,14 @@
+{
+  "name": "kids-learning-games",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Custom learning games for the kids, installable on an Android tablet as a PWA.",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.mjs",
+    "test": "node tools/test.mjs",
+    "icons": "node tools/make-icons.mjs"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

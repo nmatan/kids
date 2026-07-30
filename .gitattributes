@@ -1,0 +1,3 @@
+# Keep LF in the repo regardless of what Windows does in the working copy.
+* text=auto eol=lf
+*.png binary
