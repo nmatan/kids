@@ -26,6 +26,9 @@ export const T = {
   again: '↻ עוד פעם',
   done: 'סיימתי',
   tapToHear: 'לחצו כדי לשמוע שוב 🔊',
+  hearAgain: '🔊 שמעו שוב',
+  whatDidYouHear: 'מה שמעתם?',
+  pickTranslation: 'בחרו את התרגום הנכון',
   tapToCount: 'לחצו על כל אחד כדי לספור 👆',
   noGames: 'אין עדיין משחקים לרמה הזאת.',
 

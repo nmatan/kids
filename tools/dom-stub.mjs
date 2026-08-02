@@ -5,6 +5,11 @@ class ClassList {
   add(...c) { c.forEach((x) => this.set.add(x)); }
   remove(...c) { c.forEach((x) => this.set.delete(x)); }
   contains(c) { return this.set.has(c); }
+  toggle(c, on) {
+    const want = on === undefined ? !this.set.has(c) : Boolean(on);
+    if (want) this.set.add(c); else this.set.delete(c);
+    return want;
+  }
 }
 
 class Style {

@@ -176,5 +176,41 @@ check('every kid appears even with no plays', week.length === PROFILES.length);
 check('the week starts on Sunday', new Date(store.startOfWeek(now)).getDay() === 0);
 check('stars map to points', store.pointsFor(3) === 30 && store.pointsFor(0) === 5);
 
+/* ---------- 4. read-along highlighting ---------- */
+
+console.log('\nRead-along\n');
+
+const { speakSentence } = await load('js/kit.js');
+
+// Node has no speechSynthesis, so this exercises the estimated-timing
+// fallback — the same path Android takes when it withholds boundary events.
+const seen = [];
+const sentence = 'Little birds fly in the sky.';
+const wordCount = sentence.split(/\s+/).length;
+
+const finished = await new Promise((resolve) => {
+  const bail = setTimeout(() => resolve(false), 8000);
+  speakSentence(sentence, {
+    lang: 'en',
+    onWord: (i) => seen.push(i),
+    onDone: () => { clearTimeout(bail); resolve(true); },
+  });
+});
+
+check('the read-along finishes', finished, 'onDone never fired');
+check(`highlights all ${wordCount} words`,
+  [...new Set(seen.filter((i) => i >= 0))].length === wordCount, `saw ${JSON.stringify(seen)}`);
+check('highlights them in order',
+  seen.filter((i) => i >= 0).every((v, i, a) => i === 0 || v >= a[i - 1]), JSON.stringify(seen));
+check('clears the highlight at the end', seen[seen.length - 1] === -1, JSON.stringify(seen));
+
+const cancelled = [];
+const cancel = speakSentence(sentence, { lang: 'en', onWord: (i) => cancelled.push(i) });
+cancel();
+const afterCancel = cancelled.length;
+await sleep(1200);
+check('cancelling stops the highlight', cancelled.length === afterCancel,
+  `kept going: ${JSON.stringify(cancelled)}`);
+
 console.log(fails ? `\n[31m${fails} failure(s)[0m\n` : '\n[32mAll good.[0m\n');
 process.exit(fails ? 1 : 0);

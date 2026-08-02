@@ -89,6 +89,11 @@ Without it the app still works and every prompt is on screen as text, and the
 home screen shows a reminder — but the little one won't get much out of it. Set
 this up before handing the tablet over.
 
+**מה זה אומר?** also needs an **English** voice for the read-aloud sentences.
+That one is usually installed already; if it isn't, it's the same screen. Without
+it the sentence is still shown and still highlights word by word, so the game
+degrades into a reading exercise rather than breaking.
+
 ---
 
 ## Scores and competition
@@ -127,7 +132,7 @@ and their shelf changes.
 
 | kid | age | level | what's on their shelf |
 |-----|-----|-------|------------------------|
-| אביתר | 7 | 3 | לוח הכפל · מה השעה? · מרכיבים מילה · זיכרון |
+| אביתר | 7 | 3 | לוח הכפל · מה השעה? · מרכיבים מילה · מה זה אומר? · זיכרון |
 | אמיתי | 5 | 2 | סופרים ביחד · אותיות · חיבור וחיסור · זיכרון |
 | עברי  | 2 | 1 | חברים מהחווה · צבעים · סופרים ביחד · זיכרון |
 
@@ -139,6 +144,12 @@ doesn't score the point. Levels 2–3 show the right answer and move on.
 
 Most games read from a plain list at the top of their file — no logic to touch:
 
+- **משפטים באנגלית** → `SENTENCES` in [js/games/translate.js](js/games/translate.js).
+  63 pairs to start with; add rows as `{ en, he, tag }`. Keep English to 4–5
+  words and Hebrew to 3–5. The `tag` matters: wrong answers are drawn from the
+  **same topic first**, so a distractor can't be ruled out without actually
+  reading it. Any sentence's Hebrew can serve as a wrong answer for any other,
+  which is why a modest bank goes a long way.
 - **מילים לכתיב** → `WORDS` in [js/games/spelling.js](js/games/spelling.js).
   Drop in this week's list from school.
 - **לוחות כפל** → `TABLES` in [js/games/times.js](js/games/times.js).
@@ -175,13 +186,27 @@ Games that aren't question-and-answer can skip `Round` entirely and drive
 `ctx.setProgress` / `ctx.finish` themselves;
 [memory.js](js/games/memory.js) does that.
 
-### Adding English games later
+### English games
 
 `speak()` takes a language: `speak('where is the dog?', { lang: 'en' })` picks an
-English voice while the rest of the app stays Hebrew. Set the game's own strings
-in its own file rather than in `text.js`, and add `dir="ltr"` (class `ltr`) to
-anything that should read left-to-right. The maths games already use that class
-for their equations.
+English voice while the rest of the app stays Hebrew. Add `dir="ltr"` (class
+`ltr`) to anything that should read left-to-right — the maths games use it for
+their equations, and [translate.js](js/games/translate.js) for its sentences.
+
+For read-along text, `speakSentence()` in [js/kit.js](js/kit.js) reports which
+word is being spoken:
+
+```js
+const cancel = speakSentence('The cat is very small.', {
+  lang: 'en',
+  onWord: (i) => highlight(i),   // i = word index, then -1 when finished
+});
+```
+
+Desktop Chrome fires real `boundary` events and it uses them. Android's TTS
+frequently doesn't, so a length-weighted timing estimate runs underneath as a
+safety net and drives the highlight when no boundary event ever arrives; real
+events take over the moment one shows up. Both paths are covered by `npm test`.
 
 ---
 

@@ -114,6 +114,83 @@ export function speak(text, { rate = 0.9, pitch = 1.1, interrupt = true, lang } 
 
 export const stopSpeech = () => { try { speechSynthesis.cancel(); } catch {} };
 
+/**
+ * Speak a sentence and report which word is currently being said, so the
+ * UI can highlight along with the voice.
+ *
+ * Desktop Chrome fires real `boundary` events and we use them. Android's
+ * TTS often doesn't, so a length-weighted estimate runs as a safety net
+ * and drives the highlight when no boundary event ever arrives. Real
+ * events, if they show up, immediately take over from the estimate.
+ *
+ * onWord(i) gets the word index, then -1 when the sentence is finished.
+ * Returns a cancel function.
+ */
+export function speakSentence(text, { lang, rate = 0.8, onWord, onDone } = {}) {
+  const words = String(text).trim().split(/\s+/);
+
+  // Where each word starts in the string, to map charIndex -> word.
+  const starts = [];
+  for (let i = 0, at = 0; i < words.length; i++) {
+    at = text.indexOf(words[i], at);
+    starts.push(at);
+    at += words[i].length;
+  }
+
+  let done = false;
+  let sawBoundary = false;
+  let timers = [];
+
+  const clearAll = () => { timers.forEach(clearTimeout); timers = []; };
+  const finish = () => { if (done) return; done = true; clearAll(); onWord?.(-1); onDone?.(); };
+  const cancel = () => { if (done) return; done = true; clearAll(); stopSpeech(); };
+
+  // Longer words take longer to say; ~62ms per character at rate 1.
+  const estimate = () => {
+    const weights = words.map((w) => w.length + 2);
+    const total = weights.reduce((a, b) => a + b, 0);
+    const ms = (total * 62) / rate;
+    let acc = 0;
+    words.forEach((_, i) => {
+      const at = acc;
+      timers.push(setTimeout(() => { if (!done && !sawBoundary) onWord?.(i); }, at));
+      acc += (weights[i] / total) * ms;
+    });
+    timers.push(setTimeout(finish, acc + 400));
+  };
+
+  if (!HAS_TTS) { onWord?.(0); estimate(); return cancel; }
+
+  try {
+    speechSynthesis.cancel();
+    const code = (lang || defaultLang).toLowerCase().slice(0, 2);
+    const voice = voiceFor(code);
+    const u = new SpeechSynthesisUtterance(text);
+    if (voice) u.voice = voice;
+    u.lang = voice ? voice.lang : code;
+    u.rate = rate;
+
+    u.onboundary = (e) => {
+      if (e.name && e.name !== 'word') return;
+      if (!sawBoundary) { sawBoundary = true; clearAll(); } // real events win
+      let i = 0;
+      while (i + 1 < starts.length && starts[i + 1] <= e.charIndex) i++;
+      onWord?.(i);
+    };
+    u.onend = finish;
+    u.onerror = finish;
+
+    speechSynthesis.speak(u);
+    onWord?.(0);
+    estimate(); // safety net, cancelled the moment a real boundary arrives
+  } catch {
+    onWord?.(0);
+    estimate();
+  }
+
+  return cancel;
+}
+
 /* ---------- sound effects (generated, no audio files) ---------- */
 
 let ac = null;

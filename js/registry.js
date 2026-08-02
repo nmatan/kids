@@ -17,12 +17,13 @@ import * as memory from './games/memory.js';
 import * as times from './games/times.js';
 import * as clock from './games/clock.js';
 import * as spelling from './games/spelling.js';
+import * as translate from './games/translate.js';
 
 export const GAMES = [
-  animals, colors, counting,   // level 1
-  letters, addsub,             // level 2
-  times, clock, spelling,      // level 3
-  memory,                      // all levels
+  animals, colors, counting,          // level 1
+  letters, addsub,                    // level 2
+  times, clock, spelling, translate,  // level 3
+  memory,                             // all levels
 ];
 
 export const gamesForLevel = (level) => GAMES.filter((g) => g.meta.levels.includes(level));

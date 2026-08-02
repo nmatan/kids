@@ -415,6 +415,48 @@ button {
   padding: 6px 0 2px;
 }
 
+/* ---------- read-along sentence (translate) ---------- */
+
+.prompt.tight { font-size: clamp(22px, 4vw, 34px); }
+
+.sentence {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3em 0.15em;
+  font-size: clamp(26px, 5.4vw, 48px);
+  max-width: 20ch;
+  line-height: 1.3;
+}
+
+.sentence .word {
+  padding: 2px 10px;
+  border-radius: 12px;
+  transition: background 110ms ease, color 110ms ease, transform 110ms ease;
+}
+
+/* the word being spoken right now */
+.sentence .word.on {
+  background: var(--gold);
+  color: #241a05;
+  transform: translateY(-3px);
+}
+
+.choices.column {
+  flex-direction: column;
+  align-items: stretch;
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.choice.sentence-choice {
+  font-size: clamp(19px, 3.3vw, 28px);
+  min-height: 74px;
+  padding: 16px 22px;
+  text-align: center;
+  line-height: 1.3;
+}
+
 /* ---------- spelling ---------- */
 
 .slots { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
