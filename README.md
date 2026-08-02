@@ -15,15 +15,34 @@ UI), and it works completely offline once installed.
 
 ## Run it on your PC
 
-```
-npm start
-```
+**Double-click [start-games.bat](start-games.bat).** It starts the server and
+opens the browser for you. Leave the window open while you work; `Ctrl+C` or
+just closing it stops the server. (Right-click → *Pin to taskbar* if you use it
+often.)
 
-Then open <http://localhost:8080>. `localhost` counts as a secure origin, so the
-offline service worker and the install prompt behave exactly as they will on the
-tablet.
+From a terminal, `npm start` does the same thing without opening a browser.
+Either way the app is at <http://localhost:8080>. `localhost` counts as a secure
+origin, so the offline service worker and the install prompt behave exactly as
+they will on the tablet.
 
-There are no packages to install — `npm start` just runs `node tools/serve.mjs`.
+There are no packages to install — both just run `node tools/serve.mjs`.
+
+**Editing files doesn't need a restart.** The server sends `cache-control:
+no-store` and reads from disk on every request, so a browser refresh picks up any
+change to HTML, CSS or JS. Only edits to `tools/serve.mjs` itself need a
+restart.
+
+⚠️ **If a change doesn't show up, it's the service worker**, not the server —
+it's cache-first, which is what makes the app work offline. In DevTools (`F12`)
+→ **Application** → **Service Workers**, tick **"Update on reload"** once and
+it'll stop happening. `Ctrl+Shift+R` is the one-off version.
+
+If port 8080 is busy from an earlier run, the server says so and exits; use
+`npm start -- --port 8081`, or free it with:
+
+```powershell
+Get-NetTCPConnection -LocalPort 8080 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
 
 ### Checking nothing's broken
 

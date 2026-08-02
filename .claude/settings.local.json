@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm test *)",
+      "Bash(node tools/serve.mjs)",
+      "Bash(curl -s http://localhost:8080/)",
+      "Bash(curl -s http://localhost:8080/manifest.webmanifest)",
+      "Bash(kill %1)"
+    ]
+  }
+}
