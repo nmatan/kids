@@ -198,8 +198,8 @@ settings screen — that overrides the level for that kid only.
 
 | kid | age | level | default shelf |
 |-----|-----|-------|------------------------|
-| אביתר | 7 | 3 | לוח הכפל · מה השעה? · מרכיבים מילה · מה זה אומר? · זיכרון |
-| אמיתי | 5 | 2 | סופרים ביחד · אותיות · חיבור וחיסור · זיכרון |
+| אביתר | 7 | 3 | לוח הכפל · מה השעה? · מרכיבים מילה · מה זה אומר? · לשלם בחנות · זיכרון |
+| אמיתי | 5 | 2 | סופרים ביחד · אותיות · חיבור וחיסור · לשלם בחנות · זיכרון |
 | עברי  | 2 | 1 | חברים מהחווה · צבעים · סופרים ביחד · זיכרון |
 
 Level 1 games run in **forgiving mode**: a wrong tap shakes that one choice but
@@ -216,6 +216,11 @@ Most games read from a plain list at the top of their file — no logic to touch
   **same topic first**, so a distractor can't be ruled out without actually
   reading it. Any sentence's Hebrew can serve as a wrong answer for any other,
   which is why a modest bank goes a long way.
+- **כסף** → `MONEY` and `SHOP` in [js/games/money.js](js/games/money.js).
+  Only real circulating NIS is listed: ₪1 ₪2 ₪5 ₪10 coins and ₪20 ₪50 ₪100 ₪200
+  notes. Agorot (10 אג׳ and ½ ₪) are left out on purpose — they'd force decimal
+  prices, which is a later step. The coins are drawn in CSS, including the
+  twelve-sided ₪5 and the bi-metallic ₪10, so there are still no image files.
 - **מילים לכתיב** → `WORDS` in [js/games/spelling.js](js/games/spelling.js).
   Drop in this week's list from school.
 - **לוחות כפל** → `TABLES` in [js/games/times.js](js/games/times.js).

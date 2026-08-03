@@ -54,14 +54,30 @@ for (const game of GAMES) {
       const teardown = game.mount(stage, ctx);
 
       // Play deliberately so a winnable game always gets won: remember
-      // memory-card faces, and cycle through choices in order elsewhere.
+      // memory-card faces, pay greedily, and cycle through choices in
+      // order everywhere else.
       const seen = new Map();
       let cursor = 0;
+      const amount = (n) => parseInt(n.textContent.replace(/[^\d]/g, ''), 10) || 0;
 
       for (let step = 0; step < 3000 && stars === null; step++) {
         const cards = stage.querySelectorAll('.mem-card')
           .filter((n) => !n.classList.contains('done') && !n.classList.contains('up'));
         const choices = stage.querySelectorAll('.choice').filter((n) => !n.disabled);
+        const price = stage.querySelectorAll('.price')[0];
+
+        // Paying: the NIS denominations are a canonical system, so taking
+        // the largest piece that still fits always lands exactly on the
+        // price in the fewest pieces — within the game's item limit.
+        if (price) {
+          const owed = amount(price) - amount(stage.querySelectorAll('pay-total')[0] || { textContent: '0' });
+          const tray = stage.querySelectorAll('money')
+            .filter((n) => !n.classList.contains('picked') && amount(n) <= owed)
+            .sort((a, b) => amount(b) - amount(a));
+          if (tray.length) tray[0].dispatch('click');
+          await sleep(6);
+          continue;
+        }
 
         if (cards.length) {
           const known = cards.find((c) => seen.has(c.textContent) && seen.get(c.textContent) !== c);
@@ -123,7 +139,8 @@ for (const p of PROFILES) {
   for (const g of expected) {
     await navigate(`#/p/${p.id}/g/${g.meta.id}`);
     check(`  ${p.name} → ${g.meta.title} draws its first round`,
-      find('choice').length > 0 || find('mem-card').length > 0, 'stage was empty');
+      find('choice').length > 0 || find('mem-card').length > 0 || find('money').length > 0,
+      'stage was empty');
   }
 }
 
@@ -324,6 +341,96 @@ check('one point is phrased in the singular', leading.includes('נקודה'), le
 check('every cheer stays short enough to listen to',
   [leading, chased, chasing, lastPlay].every((s) => s.length < 260));
 
+
+/* ---------- 3f. paying in a shop ---------- */
+
+console.log('\nPaying\n');
+
+const moneyGame = GAMES.find((g) => g.meta.id === 'money');
+const val = (n) => (n ? parseInt(n.textContent.replace(/[^\d]/g, ''), 10) || 0 : 0);
+
+for (const [level, slots, notesExpected] of [[2, 2, false], [3, 3, true]]) {
+  const stage = new Node('div');
+  let stars = null;
+  const teardown = moneyGame.mount(stage, {
+    profile: { ...PROFILES[0], level },
+    setProgress() {}, finish: (s) => { stars = s; }, exit() {}, replay() {},
+  });
+
+  let overshot = false;
+  let sawNote = false;
+  let sawCoin = false;
+  let mostPieces = 0;
+  let piecesThisRound = 0;
+  let lastPrice = null;
+  let unpayable = null;
+  let emptySlots = null;
+
+  for (let step = 0; step < 3000 && stars === null; step++) {
+    const priceEl = stage.querySelectorAll('price')[0];
+    if (!priceEl) break;
+    const price = val(priceEl);
+
+    if (price !== lastPrice) { // consecutive prices never repeat, so this is a new round
+      mostPieces = Math.max(mostPieces, piecesThisRound);
+      piecesThisRound = 0;
+      lastPrice = price;
+      if (emptySlots === null) emptySlots = stage.querySelectorAll('slot-empty').length;
+    }
+
+    const paid = val(stage.querySelectorAll('pay-total')[0]);
+    if (paid > price) overshot = true;
+
+    const tray = stage.querySelectorAll('money').filter((n) => !n.classList.contains('picked'));
+    tray.forEach((n) => {
+      if (n.classList.contains('note')) sawNote = true;
+      if (n.classList.contains('coin')) sawCoin = true;
+    });
+
+    const fits = tray.filter((n) => val(n) <= price - paid).sort((a, b) => val(b) - val(a));
+    if (!fits.length) {
+      // paid === price means the round is won and is just waiting to advance
+      if (paid < price) { unpayable = `${price} (paid ${paid})`; break; }
+      await sleep(20);
+      continue;
+    }
+    fits[0].dispatch('click');
+    piecesThisRound++;
+    await sleep(6);
+  }
+  mostPieces = Math.max(mostPieces, piecesThisRound);
+  teardown?.();
+
+  check(`level ${level}: every price is payable`, unpayable === null, `stuck at ${unpayable}`);
+  check(`level ${level}: never needs more than ${slots} pieces`, mostPieces <= slots,
+    `used ${mostPieces}`);
+  check(`level ${level}: starts with ${slots} empty slots`, emptySlots === slots,
+    `got ${emptySlots}`);
+  check(`level ${level}: ${notesExpected ? 'has notes' : 'coins only, no notes'}`,
+    sawNote === notesExpected && sawCoin, `notes=${sawNote} coins=${sawCoin}`);
+  check(`level ${level}: the amount paid never passes the price`, !overshot);
+}
+
+// overshooting is refused rather than accepted
+{
+  const stage = new Node('div');
+  moneyGame.mount(stage, {
+    profile: { ...PROFILES[0], level: 2 },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  const price = val(stage.querySelectorAll('price')[0]);
+  const tooBig = stage.querySelectorAll('money')
+    .filter((n) => !n.classList.contains('picked') && val(n) > price);
+  if (tooBig.length) {
+    tooBig[0].dispatch('click');
+    await sleep(10);
+    check('a piece bigger than the price is refused',
+      val(stage.querySelectorAll('pay-total')[0]) === 0,
+      `wallet took it: ${val(stage.querySelectorAll('pay-total')[0])}`);
+  } else {
+    check('a piece bigger than the price is refused', true); // price was the largest piece
+  }
+}
 
 /* ---------- 4. read-along highlighting ---------- */
 

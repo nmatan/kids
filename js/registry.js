@@ -18,12 +18,14 @@ import * as times from './games/times.js';
 import * as clock from './games/clock.js';
 import * as spelling from './games/spelling.js';
 import * as translate from './games/translate.js';
+import * as money from './games/money.js';
 import { enabledGames } from './settings.js';
 
 export const GAMES = [
   animals, colors, counting,          // level 1
   letters, addsub,                    // level 2
   times, clock, spelling, translate,  // level 3
+  money,                              // levels 2-3
   memory,                             // all levels
 ];
 
