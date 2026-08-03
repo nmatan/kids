@@ -17,11 +17,15 @@ export const T = {
   pointsShort: 'נק׳',
 
   leaderboard: 'טבלת המובילים',
+  today: 'היום',
   thisWeek: 'השבוע',
   thisMonth: 'החודש',
-  allTime: 'כל הזמן',
   noScores: 'עוד אף אחד לא שיחק. קדימה!',
   playedGames: (n) => `${n} משחקים`,
+  boardTease: 'מי שמסיים את כל המשחקים של היום ומנצח ב-80% — מקבל מדליה וסיבוב בגלגל 🎁',
+  boardLeader: (n) => `${n} בהובלה! 👑`,
+  boardTied: 'תיקו בצמרת! 🔥',
+  boardEmpty: 'המקום הראשון פנוי. מי לוקח אותו?',
 
   again: '↻ עוד פעם',
   done: 'סיימתי',
@@ -65,6 +69,45 @@ export const PRIZES = [
   { emoji: '🎥', text: 'לצלם סרטון לסבתא' },
 ];
 
+/**
+ * The live "how am I doing today" panel on a kid's shelf: how far through
+ * the day's games they are, where they stand, and how close the medal is.
+ * Positive throughout — nobody is ever told they're losing.
+ */
+export function hudLines({ profile, rows, done, total, wins, plays }) {
+  const me = rows.findIndex((r) => r.profile.id === profile.id);
+  const mine = rows[me]?.points ?? 0;
+  const top = rows[0];
+
+  let standing;
+  if (!top || top.points === 0) {
+    standing = 'המקום הראשון של היום פנוי. קדימה! 🚀';
+  } else if (me === 0 && mine > (rows[1]?.points ?? 0)) {
+    standing = `${g(profile, 'אתה מוביל', 'את מובילה')} היום! 👑`;
+  } else if (mine === top.points) {
+    standing = `תיקו על המקום הראשון עם ${rows.find((r) => r !== rows[me] && r.points === mine)?.profile.name || ''}! 🔥`;
+  } else {
+    const ahead = rows[me - 1];
+    const gap = ahead.points - mine;
+    standing = `עוד ${gap === 1 ? 'נקודה אחת' : `${gap} נקודות`} ${g(profile, 'ואתה עובר', 'ואת עוברת')} את ${ahead.profile.name}! 💪`;
+  }
+
+  const left = total - done;
+  const rate = plays ? wins / plays : 1;
+  let medal;
+  if (left === 0) {
+    medal = rate >= 0.8
+      ? 'סיימת הכל והמדליה שלך! 🎖'
+      : 'סיימת את כל המשחקים של היום. מחר מדליה חדשה מחכה! 🎖';
+  } else if (rate >= 0.8) {
+    medal = `עוד ${left === 1 ? 'משחק אחד' : `${left} משחקים`} ${g(profile, 'ואתה בדרך', 'ואת בדרך')} למדליה ולגלגל 🎁`;
+  } else {
+    medal = 'למדליה צריך לנצח ב-80% מהמשחקים. עוד אפשר להתהפך! 💪';
+  }
+
+  return { standing, medal };
+}
+
 export const MEDAL = {
   title: 'מדליות',
   earned: 'מדליית היום! 🎖',
@@ -75,16 +118,34 @@ export const MEDAL = {
   spinning: 'מסתובב...',
   won: 'זכית ב',
   yourPrize: 'המתנה שלך',
+  // The wheel never shows what's on it — only what you landed on.
+  secret: 'בגלגל מסתתרות מתנות סודיות 🤫 מגלים רק את זו שיוצאת!',
+  progress: (done, total) => `${done} מתוך ${total} משחקים היום`,
   showParents: 'להראות לאבא ואמא 📸',
   none: 'עוד אין מדליות. מסיימים את כל המשחקים של היום ומנצחים ב-80% מהם!',
   count: (n) => (n === 0 ? 'אין עדיין' : n === 1 ? 'מדליה אחת' : `${n} מדליות`),
   rule: 'איך מקבלים מדליה: לסיים את כל המשחקים של היום, ולנצח לפחות ב-80% מהם.',
 };
 
+/**
+ * The parent gate. Percentages are instant mental arithmetic for an adult
+ * but aren't taught until well past 2nd grade, so they stop a curious
+ * 7-year-old without making a parent stop and think. Every base/percent
+ * pair below divides to a whole number.
+ */
+const GATE_PCTS = [10, 20, 25, 50];
+const GATE_BASES = [20, 40, 60, 80, 120, 200, 300];
+
+export function gateQuestion() {
+  const pct = GATE_PCTS[Math.floor(Math.random() * GATE_PCTS.length)];
+  const base = GATE_BASES[Math.floor(Math.random() * GATE_BASES.length)];
+  return { text: `כמה זה ${pct}% מ-${base}?`, answer: (base * pct) / 100 };
+}
+
 export const SET = {
   title: 'הגדרות',
   gate: 'רק להורים',
-  gateHint: 'פתרו כדי להיכנס',
+  gateHint: 'שאלה קצרה למבוגרים',
   gateWrong: 'לא נכון, נסו שוב',
   enter: 'כניסה',
 
@@ -98,7 +159,8 @@ export const SET = {
   roundsHint: 'עוקף את מספר השאלות המובנה בכל משחק',
 
   gamesSection: 'משחקים לכל ילד',
-  gamesHint: 'אפשר לתת כל משחק לכל ילד, גם מרמה אחרת',
+  gamesHint: 'לכל ילד בדיוק 5 משחקים — ככה התחרות הוגנת. כדי להחליף משחק צריך קודם להוריד אחר. אפשר לתת כל משחק לכל ילד, גם מרמה אחרת.',
+  chosenCount: (n, of) => `${n}/${of} נבחרו`,
   byLevel: 'לפי הרמה',
   useLevel: '↺ חזרה לרמה',
   noneChosen: 'לא נבחר אף משחק',
@@ -125,8 +187,8 @@ export const SET = {
 
 export const REWARD = {
   earned: (n) => (n === 1 ? '+1 נקודה' : `+${n} נקודות`),
-  rank: (i) => ['🥇 מקום ראשון השבוע', '🥈 מקום שני השבוע', '🥉 מקום שלישי השבוע'][i]
-    || `מקום ${i + 1} השבוע`,
+  rank: (i) => ['🥇 מקום ראשון היום', '🥈 מקום שני היום', '🥉 מקום שלישי היום'][i]
+    || `מקום ${i + 1} היום`,
   left: (n) => (n === 1 ? 'נשאר עוד אחד כזה היום' : `נשארו עוד ${n} כאלה היום`),
   lastOne: 'זה היה האחרון להיום במשחק הזה',
   lockedTitle: 'נגמר להיום',
@@ -157,7 +219,7 @@ export function cheerLine({ profile, stars, points, remaining, rows }) {
     const next = rows[1];
     const gap = mine - (next?.points ?? 0);
     if (!next || next.points === 0) {
-      standing = `${g(profile, 'אתה היחיד ששיחק', 'את היחידה ששיחקה')} השבוע, כל הבמה שלך!`;
+      standing = `${g(profile, 'אתה היחיד ששיחק', 'את היחידה ששיחקה')} היום, כל הבמה שלך!`;
     } else if (gap === 0) {
       standing = `${g(profile, 'אתה', 'את')} ו${next.profile.name} בדיוק תיקו! מי ${g(profile, 'ייקח', 'תיקח')} את ההובלה?`;
     } else if (gap <= 20) {

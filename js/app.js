@@ -11,7 +11,7 @@
    --------------------------------------------------------------- */
 
 import { PROFILES, getProfile } from './profiles.js';
-import { GAMES, gamesForProfile, gamesForLevel, getGame } from './registry.js';
+import { GAMES, GAMES_PER_KID, gamesForProfile, gamesForLevel, getGame } from './registry.js';
 import {
   bestStars, recordPlay, totalStars, pointsIn, leaderboard, PERIODS,
   remainingToday, remainingAcross, dailyLimit, resetAll,
@@ -22,14 +22,16 @@ import {
   burst, celebrate,
 } from './kit.js';
 import * as settings from './settings.js';
-import { T, SET, LANG, REWARD, MEDAL, PRIZES, cheerLine } from './text.js';
+import {
+  T, SET, LANG, REWARD, MEDAL, PRIZES, cheerLine, hudLines, gateQuestion,
+} from './text.js';
 import { themeFor } from './themes.js';
 
 setSpeechLang(LANG);
 
 const app = document.getElementById('app');
 let teardown = null;      // cleanup fn returned by the running game
-let period = 'week';      // which leaderboard tab is open
+let period = 'day';       // which leaderboard tab is open
 let unlocked = false;     // parent gate, deliberately not persisted
 
 const go = (hash) => { location.hash = hash; };
@@ -131,9 +133,24 @@ function leadersScreen() {
   const rows = leaderboard(PROFILES, period);
   const played = rows.some((r) => r.games > 0);
   const medals = ['🥇', '🥈', '🥉'];
-  const label = { week: T.thisWeek, month: T.thisMonth, all: T.allTime };
+  const label = { day: T.today, week: T.thisWeek, month: T.thisMonth };
+  const top = rows[0];
+  const tied = played && rows[1] && rows[1].points === top.points;
 
-  return el('div', { class: 'screen' },
+  // Podium order: 2nd, 1st, 3rd — the leader stands in the middle.
+  const podium = [rows[1], rows[0], rows[2]].filter(Boolean);
+  const best = Math.max(1, top?.points ?? 1);
+
+  // Arriving should feel like an event, not a spreadsheet.
+  if (played) {
+    setTimeout(() => {
+      celebrate(70);
+      burst(themeFor(top.profile).icons, 14);
+      sfx.win();
+    }, 120);
+  }
+
+  return el('div', { class: 'screen board-screen' },
     el('div', { class: 'topbar' },
       el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
       el('div', { class: 'grow' }, el('h2', {}, `🏆 ${T.leaderboard}`)),
@@ -146,9 +163,34 @@ function leadersScreen() {
         }, label[p]),
       ),
     ),
+
+    el('div', { class: 'headline' },
+      !played ? T.boardEmpty : tied ? T.boardTied : T.boardLeader(top.profile.name)),
+
+    el('div', { class: 'podium' },
+      podium.map((row) => {
+        const place = rows.indexOf(row);
+        const theme = themeFor(row.profile);
+        const height = 34 + (row.points / best) * 66; // relative, never zero-height
+        return el('div', { class: `pod place-${place}`, style: themeVars(theme) },
+          el('div', { class: 'pod-crown', text: place === 0 && row.points > 0 ? '👑' : '' }),
+          el('div', { class: 'pod-face', text: row.profile.face }),
+          el('div', { class: 'pod-pts' }, String(row.points)),
+          el('div', {
+            class: 'pod-stand',
+            style: { '--h': `${row.points > 0 ? height : 26}%` },
+          },
+            el('span', { class: 'pod-medal', text: row.points > 0 ? medals[place] : '·' }),
+            el('span', { class: 'pod-name', text: row.profile.name }),
+          ),
+        );
+      }),
+    ),
+
     el('div', { class: 'board' },
-      rows.map((row, i) =>
-        el('div', {
+      rows.map((row, i) => {
+        const gap = i === 0 ? 0 : rows[i - 1].points - row.points;
+        return el('div', {
           class: `board-row${i === 0 && row.points > 0 ? ' leader' : ''}`,
           style: { '--c1': row.profile.colors[0], '--c2': row.profile.colors[1] },
         },
@@ -156,15 +198,22 @@ function leadersScreen() {
           el('div', { class: 'face', text: row.profile.face }),
           el('div', { class: 'who' },
             el('div', { class: 'name', text: row.profile.name }),
-            el('div', { class: 'sub', text: T.playedGames(row.games) }),
+            el('div', { class: 'bar' },
+              el('i', { style: { width: `${(row.points / best) * 100}%` } })),
+            el('div', { class: 'sub' },
+              i === 0 || gap === 0
+                ? T.playedGames(row.games)
+                : `${T.playedGames(row.games)} · עוד ${gap} ${gap === 1 ? 'נקודה' : 'נקודות'} להשוות`),
           ),
           el('div', { class: 'pts' },
             el('b', { text: String(row.points) }),
             el('span', { text: T.pointsShort }),
           ),
-        ),
-      ),
+        );
+      }),
     ),
+
+    el('p', { class: 'board-tease', text: T.boardTease }),
     played ? null : el('p', { class: 'subtitle center', text: T.noScores }),
   );
 }
@@ -173,26 +222,24 @@ function leadersScreen() {
 
 /** Keeps a 7-year-old out. Not security — just past the curious. */
 function gateScreen() {
-  let a = randInt(12, 29);
-  let b = randInt(12, 29);
+  let q = gateQuestion();
 
-  const question = el('div', { class: 'prompt ltr', text: `${a} × ${b} = ?` });
+  const question = el('div', { class: 'prompt', text: q.text });
   const input = el('input', {
     class: 'gate-input', type: 'number', inputmode: 'numeric', autocomplete: 'off',
   });
   const error = el('div', { class: 'gate-error' });
 
   const submit = () => {
-    if (Number(input.value) === a * b) {
+    if (Number(input.value) === q.answer) {
       unlocked = true;
       render();
       return;
     }
     error.textContent = SET.gateWrong;
     input.value = '';
-    a = randInt(12, 29);
-    b = randInt(12, 29);
-    question.textContent = `${a} × ${b} = ?`;
+    q = gateQuestion();
+    question.textContent = q.text;
   };
 
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
@@ -292,29 +339,47 @@ function dangerButton(label, onConfirm) {
 
 function gamesForKidBlock(profile) {
   const chosen = settings.enabledGames(profile.id);
-  const active = new Set((chosen ?? gamesForLevel(profile.level).map((g) => g.meta.id)));
+  const active = new Set(chosen ?? gamesForLevel(profile.level).map((g) => g.meta.id));
 
+  const counter = el('span', { class: 'chip-count' });
   const chips = el('div', { class: 'chips' });
+
+  const paint = () => {
+    counter.textContent = SET.chosenCount(active.size, GAMES_PER_KID);
+    counter.classList.toggle('bad', active.size !== GAMES_PER_KID);
+  };
+
   GAMES.forEach((g) => {
-    const on = active.has(g.meta.id);
-    const chip = el('button', { class: `chip${on ? ' on' : ''}` },
+    const chip = el('button', { class: `chip${active.has(g.meta.id) ? ' on' : ''}` },
       `${g.meta.emoji} ${g.meta.title}`,
     );
     chip.addEventListener('click', () => {
-      if (active.has(g.meta.id)) active.delete(g.meta.id);
-      else active.add(g.meta.id);
+      if (active.has(g.meta.id)) {
+        active.delete(g.meta.id);
+      } else if (active.size >= GAMES_PER_KID) {
+        // Shelves stay equal, so a swap has to be a swap.
+        sfx.wrong();
+        chip.classList.add('shake');
+        setTimeout(() => chip.classList.remove('shake'), 360);
+        return;
+      } else {
+        active.add(g.meta.id);
+      }
       chip.classList.toggle('on', active.has(g.meta.id));
       settings.setEnabledGames(profile.id, [...active]);
       sfx.tap();
+      paint();
     });
     chips.append(chip);
   });
+
+  paint();
 
   return el('div', { class: 'kid-games' },
     el('div', { class: 'kid-head' },
       el('span', { class: 'face', text: profile.face }),
       el('span', { class: 'name', text: profile.name }),
-      el('span', { class: 'set-hint', text: chosen ? '' : SET.byLevel }),
+      counter,
       el('div', { class: 'grow' }),
       el('button', {
         class: 'btn small',
@@ -370,6 +435,40 @@ function settingsScreen() {
   );
 }
 
+/* ---------- the daily progress panel ---------- */
+
+/**
+ * Shown on a kid's shelf between games: how far through today they are,
+ * where they stand against the others right now, and how close the medal
+ * (and its secret wheel) is. All framed forwards — never "you're losing".
+ */
+function dailyHud(profile, games) {
+  const ids = games.map((g) => g.meta.id);
+  const total = ids.length * dailyLimit();
+  const done = total - remainingAcross(profile.id, ids);
+  const { wins, plays } = todayStats(profile.id);
+  const rows = leaderboard(PROFILES, 'day');
+  const { standing, medal } = hudLines({ profile, rows, done, total, wins, plays });
+  const pct = total ? (done / total) * 100 : 0;
+
+  return el('div', { class: 'hud' },
+    el('div', { class: 'hud-top' },
+      el('span', { class: 'hud-count', text: MEDAL.progress(done, total) }),
+      el('div', { class: 'grow' }),
+      // Live mini-standings: everyone's dot, biggest = leading
+      el('div', { class: 'hud-kids' },
+        rows.map((r) => el('span', {
+          class: `hud-kid${r.profile.id === profile.id ? ' me' : ''}`,
+          title: r.profile.name,
+        }, `${r.profile.face}${r.points}`)),
+      ),
+    ),
+    el('div', { class: 'hud-bar' }, el('i', { style: { width: `${pct}%` } })),
+    el('div', { class: 'hud-line', text: standing }),
+    el('div', { class: 'hud-line gold', text: medal }),
+  );
+}
+
 /* ---------- game shelf ---------- */
 
 function shelfScreen(profile) {
@@ -386,7 +485,6 @@ function shelfScreen(profile) {
       el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
       el('div', { class: 'grow' },
         el('h2', {}, `${theme.badge} ${theme.space(profile.name)}`),
-        plays ? el('div', { class: 'set-hint', text: MEDAL.why(wins, plays) }) : null,
       ),
       el('div', { class: 'pill' }, `🏅 ${pointsIn(profile.id, 'week')} ${T.pointsShort}`),
       el('div', { class: `pill${total <= 3 ? ' low' : ''}` }, `🎮 ${total}`),
@@ -397,7 +495,10 @@ function shelfScreen(profile) {
         onClick: () => { sfx.tap(); go(`/p/${profile.id}/wheel`); },
       }, MEDAL.pending)
       : null,
-    allUsedUp ? el('p', { class: 'warn center', text: REWARD.lockedHint(dailyLimit()) }) : null,
+    games.length ? dailyHud(profile, games) : null,
+    allUsedUp && !gift
+      ? el('p', { class: 'warn center', text: REWARD.lockedHint(dailyLimit()) })
+      : null,
     el('div', { class: 'game-grid' },
       games.map((g) => {
         // Each game has its own allowance, so cards lock one at a time.
@@ -458,7 +559,7 @@ function playScreen(profile, game) {
     finish(stars) {
       const points = recordPlay(profile.id, game.meta.id, stars);
       const remaining = remainingToday(profile.id, game.meta.id);
-      const rows = leaderboard(PROFILES, 'week');
+      const rows = leaderboard(PROFILES, 'day');
       const rank = rows.findIndex((r) => r.profile.id === profile.id);
       // Checked after recording: a medal can only ever be the last play.
       const medal = awardMedal(profile.id, gamesForProfile(profile).map((g) => g.meta.id));
@@ -518,10 +619,13 @@ function wheelScreen(profile) {
         .join(',')})`,
     },
   },
-    PRIZES.map((p, i) => {
+    // Every segment shows the same mystery mark. Showing the real prizes
+    // would give away all seven the first time they ever spin — half the
+    // thrill is not knowing what else was on there.
+    PRIZES.map((_, i) => {
       const angle = (i + 0.5) * SEG;
       return el('span', { class: 'wseg', style: { transform: `rotate(${angle}deg)` } },
-        el('i', { class: 'wico', style: { transform: `rotate(${-angle}deg)` } }, p.emoji));
+        el('i', { class: 'wico', style: { transform: `rotate(${-angle}deg)` } }, '🎁'));
     }),
   );
 
@@ -566,6 +670,7 @@ function wheelScreen(profile) {
     ),
     el('div', { class: 'stage' },
       el('p', { class: 'subtitle', text: MEDAL.why(medal.wins, medal.plays) }),
+      el('p', { class: 'secret-note', text: MEDAL.secret }),
       el('div', { class: 'wheel-wrap' },
         el('div', { class: 'wheel-pin' }, '▼'),
         wheel,

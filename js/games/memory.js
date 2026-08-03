@@ -9,7 +9,7 @@ export const meta = {
   title: 'זיכרון',
   emoji: '🧠',
   blurb: 'מצאו את הזוגות',
-  levels: [1, 2, 3],
+  levels: [1, 2],
 };
 
 const PAIRS_BY_LEVEL = { 1: 3, 2: 6, 3: 8 };

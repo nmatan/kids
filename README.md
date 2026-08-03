@@ -51,7 +51,7 @@ npm test
 ```
 
 This mounts every game, plays each one through to its end screen, walks every
-screen, and checks the week/month/all-time score windows — all in Node, against
+screen, and checks the day/week/month score windows — all in Node, against
 a tiny fake DOM ([tools/dom-stub.mjs](tools/dom-stub.mjs)). It takes about a
 minute. Run it after adding a game or editing a word list.
 
@@ -110,10 +110,12 @@ the total still available across the whole shelf. The route is guarded too, so a
 bookmark can't get around it. Resets at local midnight, and the number is
 configurable in settings.
 
-> Note this means shelf size affects the daily ceiling: at 5 a game, אביתר's 5
-> games allow 25 plays a day against the others' 20. If that turns into a
-> permanent lead, the cleanest fix is giving everyone the same number of games —
-> and עברי's four are thin anyway.
+**Every kid has exactly five games, always** ([`GAMES_PER_KID`](js/registry.js)).
+Equal shelves mean equal daily ceilings — 25 plays each — which is what makes the
+scoreboard a fair contest. Each level's default list is already five, and
+`gamesForProfile()` enforces it whatever settings say: too many gets trimmed, too
+few gets padded with the games closest to that kid's level, so a half-finished
+settings change can never leave someone short.
 
 ### Points
 
@@ -190,6 +192,11 @@ Earning one interrupts the usual end-of-game card with 🎖 **מגיעה לך מ
 which opens a **prize wheel** — seven segments, a four-second spin, and the
 prize is announced out loud and written to the medal.
 
+**The wheel never shows what is on it.** Every segment is a 🎁, and only the one
+landed on is ever revealed. Showing the real prizes would spend all seven the
+first time anyone spun; this way each medal uncovers one and the rest stay a
+rumour.
+
 The prizes are in `PRIZES` in [js/text.js](js/text.js) — swap in whatever you're
 happy to promise:
 
@@ -207,16 +214,18 @@ profile card and as a banner on their shelf, so an interrupted spin isn't lost.
 
 ## Settings
 
-Home screen → **⚙** (top corner), behind a parent gate: a two-digit
-multiplication that אביתר can't do in his head yet. The gate is per-session, so
-closing the app re-locks it. It's a speed bump, not security.
+Home screen → **⚙** (top corner), behind a parent gate: a percentage question
+("כמה זה 25% מ-120?"). Instant for an adult, and percentages are not taught
+anywhere near 2nd grade, so it stops a curious 7-year-old without making you
+stop and think. The gate is per-session, so closing the app re-locks it. It is a
+speed bump, not security.
 
 | setting | what it does |
 |---------|--------------|
 | פעמים ביום בכל משחק | plays of each game per kid per day |
 | נקודות לכל ניצחון | points for winning a game |
 | שאלות במשחק | questions per game — overrides each game's built-in count |
-| משחקים לכל ילד | which games each kid sees; **any game can go to any kid**, regardless of level |
+| משחקים לכל ילד | which five games each kid sees; **any game can go to any kid**, regardless of level |
 | הקראה בקול | spoken prompts and the end-of-game cheer |
 | אפקטים קוליים | beeps and chimes |
 | קונפטי בסיום | the celebration burst |
@@ -226,6 +235,8 @@ closing the app re-locks it. It's a speed bump, not security.
 
 Per-kid game selection starts as "whatever matches their level" and only becomes
 an explicit list once you touch it; **↺ חזרה לרמה** puts a kid back on automatic.
+The picker holds you to exactly five: a sixth chip refuses and shakes, so
+swapping a game means dropping one first. The counter turns red until it is 5/5.
 
 **This is the dumping ground for future options.** To add one: a key in
 `DEFAULTS` in [js/settings.js](js/settings.js), and a `row(...)` in

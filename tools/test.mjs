@@ -179,15 +179,39 @@ check('a win scores, whatever the star count',
   store.pointsFor(1) === 1 && store.pointsFor(2) === 1 && store.pointsFor(3) === 1);
 check('finishing with no stars scores nothing', store.pointsFor(0) === 0);
 
-// per-kid game selection overrides the level default
-const levelShelf = gamesForProfile(kidC).map((g) => g.meta.id);
-cfg.setEnabledGames(kidC.id, ['times', 'memory']);
+/* every shelf is exactly five games, always — equal shelves are what
+   make the daily ceilings equal and the scoreboard a fair contest */
+const { GAMES_PER_KID } = await load('js/registry.js');
+const shelfOf = (p) => gamesForProfile(p).map((g) => g.meta.id);
+
+check(`every kid's default shelf is exactly ${GAMES_PER_KID}`,
+  PROFILES.every((p) => shelfOf(p).length === GAMES_PER_KID),
+  PROFILES.map((p) => `${p.name}=${shelfOf(p).length}`).join(' '));
+check('every level has exactly five games by default',
+  [1, 2, 3].every((l) => gamesForLevel(l).length === GAMES_PER_KID),
+  [1, 2, 3].map((l) => `L${l}=${gamesForLevel(l).length}`).join(' '));
+
+const levelShelf = shelfOf(kidC);
+cfg.setEnabledGames(kidC.id, ['times', 'memory', 'clock', 'spelling', 'money']);
 check('a kid can be given games from any level',
-  gamesForProfile(kidC).map((g) => g.meta.id).join() === 'times,memory',
-  gamesForProfile(kidC).map((g) => g.meta.id).join());
+  shelfOf(kidC).join() === 'times,clock,spelling,money,memory', shelfOf(kidC).join());
+
+cfg.setEnabledGames(kidC.id, ['times', 'memory']);
+check('too few chosen is padded back up to five',
+  shelfOf(kidC).length === GAMES_PER_KID, shelfOf(kidC).join());
+check('padding keeps what was actually chosen',
+  shelfOf(kidC).includes('times') && shelfOf(kidC).includes('memory'), shelfOf(kidC).join());
+
+cfg.setEnabledGames(kidC.id, GAMES.map((g) => g.meta.id));
+check('too many chosen is trimmed back down to five',
+  shelfOf(kidC).length === GAMES_PER_KID, `${shelfOf(kidC).length}`);
+
+cfg.setEnabledGames(kidC.id, []);
+check('an empty selection still yields five', shelfOf(kidC).length === GAMES_PER_KID);
+
 cfg.clearEnabledGames(kidC.id);
 check('clearing the override restores their level shelf',
-  gamesForProfile(kidC).map((g) => g.meta.id).join() === levelShelf.join());
+  shelfOf(kidC).join() === levelShelf.join());
 
 check('the week start day is configurable', (() => {
   cfg.set('weekStartsOn', 1);
@@ -229,8 +253,14 @@ const month = store.leaderboard(PROFILES, 'month').find((r) => r.profile.id === 
 check('month includes earlier this month but not last month', month.points === 1,
   `got ${month.points}`);
 
-const all = store.leaderboard(PROFILES, 'all').find((r) => r.profile.id === kidC.id);
-check('all time counts everything', all.points === 2, `got ${all.points}`);
+check('the board runs day / week / month, with no all-time',
+  store.PERIODS.join() === 'day,week,month', store.PERIODS.join());
+
+const dayBoard = store.leaderboard(PROFILES, 'day');
+check('the daily board counts only today',
+  dayBoard.find((r) => r.profile.id === kidA.id).points === 3
+    && dayBoard.find((r) => r.profile.id === kidC.id).points === 0,
+  dayBoard.map((r) => `${r.profile.name}=${r.points}`).join(' '));
 
 check('every kid appears even with no plays', week.length === PROFILES.length);
 
@@ -295,7 +325,10 @@ check('every card locks once the whole shelf is used up',
 
 // a game that isn't on this kid's shelf can't be opened by URL
 seed([]);
-cfg.setEnabledGames(kidA.id, ['memory']);
+cfg.setEnabledGames(kidA.id, ['memory', 'animals', 'colors', 'counting', 'shapes']);
+check('the swapped-in shelf is what took effect',
+  !gamesForProfile(kidA).some((g) => g.meta.id === 'times'),
+  gamesForProfile(kidA).map((g) => g.meta.id).join());
 await navigate(`#/p/${kidA.id}/g/times`);
 check('a game off the shelf cannot be opened by URL', find('game-card').length > 0);
 cfg.clearEnabledGames(kidA.id);
@@ -307,6 +340,27 @@ console.log('\nParent gate\n');
 await navigate('#/settings');
 check('settings are behind a gate', find('gate-input').length === 1, 'no gate shown');
 check('the gate does not show the settings', find('set-row').length === 0);
+
+// the gate asks a percentage — instant for an adult, not 2nd-grade maths
+const { gateQuestion, SET } = await load('js/text.js');
+const asked = Array.from({ length: 40 }, () => gateQuestion());
+check('the gate asks a percentage question',
+  asked.every((q) => q.text.includes('%')), asked[0].text);
+check('every gate answer is a whole number',
+  asked.every((q) => Number.isInteger(q.answer)),
+  asked.find((q) => !Number.isInteger(q.answer))?.text);
+check('the gate question is not a times-table drill',
+  asked.every((q) => !q.text.includes('×')), asked[0].text);
+
+// answering it correctly gets in
+const gateInput = find('gate-input')[0];
+const shown = appRoot.textContent.match(/כמה זה (\d+)% מ-(\d+)/);
+gateInput.value = String((Number(shown[2]) * Number(shown[1])) / 100);
+find('btn').find((b) => b.textContent.includes(SET.enter))?.dispatch('click');
+await sleep(20);
+check('the right answer opens settings', find('set-row').length > 0,
+  'still gated');
+check('the settings offer the per-kid game picker', find('kid-games').length === PROFILES.length);
 
 /* ---------- 3e. the spoken cheer ---------- */
 

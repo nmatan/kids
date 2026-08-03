@@ -115,12 +115,12 @@ export function startOfMonth(now = new Date()) {
   return d.getTime();
 }
 
-export const PERIODS = ['week', 'month', 'all'];
+export const PERIODS = ['day', 'week', 'month'];
 
 export function periodStart(period, now = new Date()) {
-  if (period === 'week') return startOfWeek(now);
+  if (period === 'day') return startOfDay(now);
   if (period === 'month') return startOfMonth(now);
-  return 0;
+  return startOfWeek(now);
 }
 
 /**
@@ -128,7 +128,7 @@ export function periodStart(period, now = new Date()) {
  * Returns one row per profile — including kids with zero, so nobody
  * disappears from the table on a quiet week.
  */
-export function leaderboard(profiles, period = 'all', now = new Date()) {
+export function leaderboard(profiles, period = 'week', now = new Date()) {
   const since = periodStart(period, now);
   const { log } = read();
 
@@ -146,7 +146,7 @@ export function leaderboard(profiles, period = 'all', now = new Date()) {
 }
 
 /** One kid's points for a period — used on the profile cards. */
-export function pointsIn(profileId, period = 'all', now = new Date()) {
+export function pointsIn(profileId, period = 'week', now = new Date()) {
   const since = periodStart(period, now);
   return read().log
     .filter((e) => e.p === profileId && e.at >= since)
