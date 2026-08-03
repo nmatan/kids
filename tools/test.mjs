@@ -151,7 +151,7 @@ const now = new Date();
 
 cfg.resetSettings();
 check('defaults: 1 point per win', cfg.get('pointsPerWin') === 1, `got ${cfg.get('pointsPerWin')}`);
-check('defaults: a per-kid daily allowance', cfg.get('dailyLimit') === 5, `got ${cfg.get('dailyLimit')}`);
+check('defaults: 5 plays of each game per day', cfg.get('dailyLimit') === 5, `got ${cfg.get('dailyLimit')}`);
 
 cfg.set('pointsPerWin', 7);
 check('changing points per win takes effect', store.pointsFor(3) === 7, `got ${store.pointsFor(3)}`);
@@ -217,55 +217,67 @@ check('all time counts everything', all.points === 2, `got ${all.points}`);
 
 check('every kid appears even with no plays', week.length === PROFILES.length);
 
-/* ---------- 3c. daily allowance ---------- */
+/* ---------- 3c. daily allowance (per kid, per game) ---------- */
 
 console.log('\nDaily limit\n');
 
 const limit = store.dailyLimit();
+const shelf = gamesForProfile(kidA).map((g) => g.meta.id);
+const [gameOne, gameTwo] = shelf;
 
 seed([]);
-check(`a fresh day allows ${limit} games`, store.remainingToday(kidA.id) === limit);
+check(`a fresh day allows ${limit} plays of each game`,
+  store.remainingToday(kidA.id, gameOne) === limit);
 
-// spread across DIFFERENT games — the allowance is shared, not per game
-seed([
-  play(Date.now(), kidA, 3, 'times'),
-  play(Date.now(), kidA, 2, 'memory'),
-  play(Date.now(), kidA, 1, 'clock'),
-]);
-check('the allowance is shared across every game, not per game',
-  store.remainingToday(kidA.id) === limit - 3, `got ${store.remainingToday(kidA.id)}`);
+seed(Array.from({ length: 3 }, () => play(Date.now(), kidA, 3, gameOne)));
+check('each play uses one of that game up',
+  store.remainingToday(kidA.id, gameOne) === limit - 3,
+  `got ${store.remainingToday(kidA.id, gameOne)}`);
+check('a different game keeps its own full allowance',
+  store.remainingToday(kidA.id, gameTwo) === limit);
 check('one kid using theirs up does not affect another',
-  store.remainingToday(kidB.id) === limit);
+  store.remainingToday(kidB.id, gameOne) === limit);
 
-seed(Array.from({ length: limit + 3 }, (_, i) => play(Date.now(), kidA, 3, `g${i}`)));
-check('it never goes negative', store.remainingToday(kidA.id) === 0,
-  `got ${store.remainingToday(kidA.id)}`);
+seed(Array.from({ length: limit + 3 }, () => play(Date.now(), kidA, 3, gameOne)));
+check('it never goes negative', store.remainingToday(kidA.id, gameOne) === 0);
 
-seed(Array.from({ length: limit }, () => play(store.startOfDay(now) - 1000, kidA, 3)));
-check('the allowance resets at midnight', store.remainingToday(kidA.id) === limit,
-  `got ${store.remainingToday(kidA.id)}`);
+seed(Array.from({ length: limit }, () => play(store.startOfDay(now) - 1000, kidA, 3, gameOne)));
+check('the allowance resets at midnight',
+  store.remainingToday(kidA.id, gameOne) === limit,
+  `got ${store.remainingToday(kidA.id, gameOne)}`);
 
-cfg.set('dailyLimit', 3);
 seed([]);
-check('changing the limit in settings takes effect', store.remainingToday(kidA.id) === 3);
+check('the shelf total is the per-game allowance times the shelf',
+  store.remainingAcross(kidA.id, shelf) === limit * shelf.length,
+  `got ${store.remainingAcross(kidA.id, shelf)}`);
+
+cfg.set('dailyLimit', 2);
+seed([]);
+check('changing the limit in settings takes effect',
+  store.remainingToday(kidA.id, gameOne) === 2);
 cfg.resetSettings();
 
-// ...and the UI reflects it
-seed(Array.from({ length: store.dailyLimit() }, () => play(Date.now(), kidA, 3)));
+// ...and the UI reflects it, one card at a time
+seed(Array.from({ length: store.dailyLimit() }, () => play(Date.now(), kidA, 3, gameOne)));
 await navigate(`#/p/${kidA.id}`);
-const shelfSize = gamesForProfile(kidA).length;
-check('every card locks once the day is used up', find('locked').length === shelfSize,
-  `${find('locked').length} of ${shelfSize} locked`);
-await navigate(`#/p/${kidA.id}/g/${gamesForProfile(kidA)[0].meta.id}`);
-check('opening a game with none left bounces to the shelf',
+check('only the used-up game locks', find('locked').length === 1,
+  `${find('locked').length} locked of ${shelf.length}`);
+await navigate(`#/p/${kidA.id}/g/${gameOne}`);
+check('opening a used-up game bounces to the shelf',
   find('game-card').length > 0 && find('choice').length === 0);
-
-seed([]);
-await navigate(`#/p/${kidA.id}/g/${gamesForProfile(kidA)[0].meta.id}`);
-check('with games left it opens normally',
+await navigate(`#/p/${kidA.id}/g/${gameTwo}`);
+check('another game on the same shelf still opens',
   find('choice').length > 0 || find('mem-card').length > 0);
 
+// every game used up
+seed(shelf.flatMap((id) =>
+  Array.from({ length: store.dailyLimit() }, () => play(Date.now(), kidA, 3, id))));
+await navigate(`#/p/${kidA.id}`);
+check('every card locks once the whole shelf is used up',
+  find('locked').length === shelf.length, `${find('locked').length} of ${shelf.length}`);
+
 // a game that isn't on this kid's shelf can't be opened by URL
+seed([]);
 cfg.setEnabledGames(kidA.id, ['memory']);
 await navigate(`#/p/${kidA.id}/g/times`);
 check('a game off the shelf cannot be opened by URL', find('game-card').length > 0);

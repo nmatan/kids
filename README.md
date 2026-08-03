@@ -100,11 +100,20 @@ degrades into a reading exercise rather than breaking.
 
 ### The daily allowance
 
-Each kid gets **5 games per day** — a per-kid total across their whole shelf,
-not per game, so having more games on your shelf can't buy points. The home
-screen and the shelf both show how many are left; at zero every card locks and
-the route is guarded so a bookmark can't get around it. It resets at local
-midnight, and the number is configurable in settings.
+**5 plays of each game, per kid, per day.** Each game has its own allowance, so
+cards lock one at a time — using up לוח הכפל doesn't touch מה השעה?. To collect
+the day's points you have to play across the shelf rather than grinding one
+favourite.
+
+Each card shows what's left and locks at zero; the shelf and home screen show
+the total still available across the whole shelf. The route is guarded too, so a
+bookmark can't get around it. Resets at local midnight, and the number is
+configurable in settings.
+
+> Note this means shelf size affects the daily ceiling: at 5 a game, אביתר's 5
+> games allow 25 plays a day against the others' 20. If that turns into a
+> permanent lead, the cleanest fix is giving everyone the same number of games —
+> and עברי's four are thin anyway.
 
 ### Points
 
@@ -158,7 +167,7 @@ closing the app re-locks it. It's a speed bump, not security.
 
 | setting | what it does |
 |---------|--------------|
-| משחקים ליום לכל ילד | daily allowance, per kid, across all games |
+| פעמים ביום בכל משחק | plays of each game per kid per day |
 | נקודות לכל ניצחון | points for winning a game |
 | שאלות במשחק | questions per game — overrides each game's built-in count |
 | משחקים לכל ילד | which games each kid sees; **any game can go to any kid**, regardless of level |

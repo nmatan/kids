@@ -7,7 +7,7 @@
    fetch the new code.
    --------------------------------------------------------------- */
 
-const VERSION = 'v5';
+const VERSION = 'v6';
 const CACHE = `kids-games-${VERSION}`;
 
 const PRECACHE = [

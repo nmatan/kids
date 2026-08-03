@@ -14,7 +14,7 @@ import { PROFILES, getProfile } from './profiles.js';
 import { GAMES, gamesForProfile, gamesForLevel, getGame } from './registry.js';
 import {
   bestStars, recordPlay, totalStars, pointsIn, leaderboard, PERIODS,
-  remainingToday, dailyLimit, resetAll,
+  remainingToday, remainingAcross, dailyLimit, resetAll,
 } from './store.js';
 import {
   el, clear, speak, stopSpeech, sfx, setSpeechLang, hasVoice, randInt,
@@ -75,7 +75,7 @@ function homeScreen() {
             el('span', { class: 'sep' }, '·'),
             `🏅 ${pointsIn(p.id, 'week')} ${T.pointsShort}`,
             el('span', { class: 'sep' }, '·'),
-            `🎮 ${remainingToday(p.id)}`,
+            `🎮 ${remainingAcross(p.id, gamesForProfile(p).map((g) => g.meta.id))}`,
           ),
         ),
       ),
@@ -333,31 +333,35 @@ function settingsScreen() {
 
 function shelfScreen(profile) {
   const games = gamesForProfile(profile);
-  const left = remainingToday(profile.id);
-  const outOfPlays = left <= 0;
+  const total = remainingAcross(profile.id, games.map((g) => g.meta.id));
+  const allUsedUp = games.length > 0 && total === 0;
 
   return el('div', { class: 'screen' },
     el('div', { class: 'topbar' },
       el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
       el('div', { class: 'grow' }, el('h2', {}, `${profile.face} ${profile.name}`)),
       el('div', { class: 'pill' }, `🏅 ${pointsIn(profile.id, 'week')} ${T.pointsShort}`),
-      el('div', { class: `pill${left <= 2 ? ' low' : ''}` },
-        outOfPlays ? `🔒 ${REWARD.lockedTitle}` : `🎮 ${REWARD.leftShort(left)}`),
+      el('div', { class: `pill${total <= 3 ? ' low' : ''}` }, `🎮 ${total}`),
     ),
-    outOfPlays ? el('p', { class: 'warn center', text: REWARD.lockedHint(dailyLimit()) }) : null,
+    allUsedUp ? el('p', { class: 'warn center', text: REWARD.lockedHint(dailyLimit()) }) : null,
     el('div', { class: 'game-grid' },
-      games.map((g) =>
-        el('button', {
-          class: `game-card${outOfPlays ? ' locked' : ''}`,
-          disabled: outOfPlays,
+      games.map((g) => {
+        // Each game has its own allowance, so cards lock one at a time.
+        const left = remainingToday(profile.id, g.meta.id);
+        const locked = left <= 0;
+        return el('button', {
+          class: `game-card${locked ? ' locked' : ''}`,
+          disabled: locked,
           onClick: () => { sfx.tap(); go(`/p/${profile.id}/g/${g.meta.id}`); },
         },
-          el('div', { class: 'emoji', text: outOfPlays ? '🔒' : g.meta.emoji }),
+          el('div', { class: 'emoji', text: locked ? '🔒' : g.meta.emoji }),
           el('div', { class: 'title', text: g.meta.title }),
-          el('div', { class: 'blurb', text: g.meta.blurb }),
+          el('div', { class: 'blurb', text: locked ? REWARD.tomorrow : g.meta.blurb }),
           el('div', { class: 'stars', text: starRow(bestStars(profile.id, g.meta.id)) }),
-        ),
-      ),
+          el('div', { class: `left-badge${left <= 2 && !locked ? ' low' : ''}` },
+            locked ? REWARD.lockedTitle : REWARD.leftShort(left)),
+        );
+      }),
     ),
     games.length ? null : el('p', { class: 'subtitle center', text: T.noGames }),
   );
@@ -398,7 +402,7 @@ function playScreen(profile, game) {
      */
     finish(stars) {
       const points = recordPlay(profile.id, game.meta.id, stars);
-      const remaining = remainingToday(profile.id);
+      const remaining = remainingToday(profile.id, game.meta.id);
       const rows = leaderboard(PROFILES, 'week');
       const rank = rows.findIndex((r) => r.profile.id === profile.id);
 
@@ -414,7 +418,7 @@ function playScreen(profile, game) {
     replay() {
       // Belt and braces: the card hides the replay button when the day's
       // allowance is gone, but never let a replay slip through anyway.
-      if (remainingToday(profile.id) <= 0) return ctx.exit();
+      if (remainingToday(profile.id, game.meta.id) <= 0) return ctx.exit();
       teardown?.();
       clear(stage);
       clear(dots);
@@ -446,7 +450,7 @@ function render() {
   // Fall back to the shelf rather than starting something that can't count.
   const game = route.gameId ? getGame(route.gameId) : null;
   const onShelf = game && gamesForProfile(profile).some((g) => g.meta.id === game.meta.id);
-  const playable = onShelf && remainingToday(profile.id) > 0;
+  const playable = onShelf && remainingToday(profile.id, game.meta.id) > 0;
   app.append(playable ? playScreen(profile, game) : shelfScreen(profile));
 }
 

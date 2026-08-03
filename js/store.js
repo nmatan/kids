@@ -9,9 +9,12 @@
    Scoring is deliberately flat: one point per game won, whatever the
    game and whatever the level. A 2-year-old finding three animals and a
    7-year-old getting twelve times-tables questions right both earn the
-   same point, and the daily allowance is per kid rather than per game,
-   so neither a bigger shelf nor a harder game buys an advantage. It also
-   means the kids can count the board themselves.
+   same point, so a harder game buys no advantage — and the kids can
+   count the board themselves.
+
+   The daily allowance is per kid PER GAME: five plays of each game, each
+   day. To collect the day's points you have to play across the shelf
+   rather than grinding one favourite.
 
    Note there is no server and no database — this is localStorage on the
    device, so each tablet keeps its own scores.
@@ -32,7 +35,7 @@ const MAX_LOG = 3000; // ~years of play; keeps localStorage small
  */
 export const pointsFor = (stars) => (stars >= 1 ? get('pointsPerWin') : 0);
 
-/** Games a kid may finish per day, across their whole shelf. */
+/** How many times a kid may finish any ONE game per day. */
 export const dailyLimit = () => get('dailyLimit');
 
 function read() {
@@ -78,15 +81,20 @@ export function startOfDay(now = new Date()) {
   return d.getTime();
 }
 
-/** How many games this kid has finished today, across every game. */
-export function playsToday(profileId, now = new Date()) {
+/** How many times this kid has finished this particular game today. */
+export function playsToday(profileId, gameId, now = new Date()) {
   const since = startOfDay(now);
-  return read().log.filter((e) => e.p === profileId && e.at >= since).length;
+  return read().log.filter((e) => e.p === profileId && e.g === gameId && e.at >= since).length;
 }
 
-/** Games left today, 0 once they've used the day's allowance up. */
-export function remainingToday(profileId, now = new Date()) {
-  return Math.max(0, dailyLimit() - playsToday(profileId, now));
+/** Plays left today on one game, 0 once its allowance is used up. */
+export function remainingToday(profileId, gameId, now = new Date()) {
+  return Math.max(0, dailyLimit() - playsToday(profileId, gameId, now));
+}
+
+/** Plays left today added up over a shelf — the number on the home screen. */
+export function remainingAcross(profileId, gameIds, now = new Date()) {
+  return gameIds.reduce((sum, id) => sum + remainingToday(profileId, id, now), 0);
 }
 
 /** Midnight on the most recent week-start day (Sunday unless configured). */
