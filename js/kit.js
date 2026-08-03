@@ -116,13 +116,37 @@ export function speak(text, { rate = 0.9, pitch = 1.1, interrupt = true, lang } 
 export const stopSpeech = () => { try { speechSynthesis.cancel(); } catch {} };
 
 /**
+ * Resolve once the voice has finished talking, or after `max` ms.
+ *
+ * Games await this before moving on, so an answer being read out is never
+ * chopped off mid-word by the next round starting.
+ */
+export function waitForSpeech(max = 5000) {
+  if (!HAS_TTS || !get('speech')) return Promise.resolve();
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const tick = () => {
+      let talking = false;
+      try { talking = speechSynthesis.speaking || speechSynthesis.pending; } catch {}
+      if (!talking || Date.now() - started > max) return resolve();
+      setTimeout(tick, 120);
+    };
+    tick();
+  });
+}
+
+/**
  * Speak a sentence and report which word is currently being said, so the
  * UI can highlight along with the voice.
  *
- * Desktop Chrome fires real `boundary` events and we use them. Android's
- * TTS often doesn't, so a length-weighted estimate runs as a safety net
- * and drives the highlight when no boundary event ever arrives. Real
- * events, if they show up, immediately take over from the estimate.
+ * Each word is spoken as its own utterance and highlighted from that
+ * utterance's `onstart`, so the highlight is exactly on the word being
+ * said. The obvious alternative — one utterance plus `boundary` events —
+ * drifts badly, because Android's TTS mostly doesn't fire them and the
+ * fallback can only ever be a guess at the timing.
+ *
+ * The cost is a small gap between words. For a 4-5 word sentence a child
+ * is learning to read, that is a fair trade for being in time.
  *
  * onWord(i) gets the word index, then -1 when the sentence is finished.
  * Returns a cancel function.
@@ -131,23 +155,15 @@ export function speakSentence(text, { lang, rate = 0.8, onWord, onDone } = {}) {
   const muted = !get('speech');
   const words = String(text).trim().split(/\s+/);
 
-  // Where each word starts in the string, to map charIndex -> word.
-  const starts = [];
-  for (let i = 0, at = 0; i < words.length; i++) {
-    at = text.indexOf(words[i], at);
-    starts.push(at);
-    at += words[i].length;
-  }
-
   let done = false;
-  let sawBoundary = false;
   let timers = [];
 
   const clearAll = () => { timers.forEach(clearTimeout); timers = []; };
   const finish = () => { if (done) return; done = true; clearAll(); onWord?.(-1); onDone?.(); };
   const cancel = () => { if (done) return; done = true; clearAll(); stopSpeech(); };
 
-  // Longer words take longer to say; ~62ms per character at rate 1.
+  // Only used when there's no voice at all: walk the highlight on a timer
+  // so the read-along still works silently. ~62ms per character at rate 1.
   const estimate = () => {
     const weights = words.map((w) => w.length + 2);
     const total = weights.reduce((a, b) => a + b, 0);
@@ -155,37 +171,35 @@ export function speakSentence(text, { lang, rate = 0.8, onWord, onDone } = {}) {
     let acc = 0;
     words.forEach((_, i) => {
       const at = acc;
-      timers.push(setTimeout(() => { if (!done && !sawBoundary) onWord?.(i); }, at));
+      timers.push(setTimeout(() => { if (!done) onWord?.(i); }, at));
       acc += (weights[i] / total) * ms;
     });
     timers.push(setTimeout(finish, acc + 400));
   };
 
-  // Muted still walks the highlight, so the read-along works silently.
   if (!HAS_TTS || muted) { onWord?.(0); estimate(); return cancel; }
 
   try {
     speechSynthesis.cancel();
     const code = (lang || defaultLang).toLowerCase().slice(0, 2);
     const voice = voiceFor(code);
-    const u = new SpeechSynthesisUtterance(text);
-    if (voice) u.voice = voice;
-    u.lang = voice ? voice.lang : code;
-    u.rate = rate;
 
-    u.onboundary = (e) => {
-      if (e.name && e.name !== 'word') return;
-      if (!sawBoundary) { sawBoundary = true; clearAll(); } // real events win
-      let i = 0;
-      while (i + 1 < starts.length && starts[i + 1] <= e.charIndex) i++;
-      onWord?.(i);
-    };
-    u.onend = finish;
-    u.onerror = finish;
+    words.forEach((word, i) => {
+      const u = new SpeechSynthesisUtterance(word);
+      if (voice) u.voice = voice;
+      u.lang = voice ? voice.lang : code;
+      u.rate = rate;
+      u.onstart = () => { if (!done) onWord?.(i); };
+      if (i === words.length - 1) {
+        u.onend = () => timers.push(setTimeout(finish, 260));
+        u.onerror = finish;
+      }
+      speechSynthesis.speak(u);
+    });
 
-    speechSynthesis.speak(u);
     onWord?.(0);
-    estimate(); // safety net, cancelled the moment a real boundary arrives
+    // If the engine never reports back, don't leave a word lit forever.
+    timers.push(setTimeout(finish, (text.length * 150) / rate + 3000));
   } catch {
     onWord?.(0);
     estimate();
@@ -223,6 +237,31 @@ export const sfx = {
   correct: () => { tone(660, 0, 0.13); tone(880, 0.1, 0.2); },
   wrong:   () => tone(180, 0, 0.22, { type: 'sawtooth', gain: 0.09 }),
   win:     () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.11, 0.3)),
+
+  /* --- the prize wheel --- */
+
+  /** Tension riser: keeps climbing for `secs`, so the spin feels loaded. */
+  rise: (secs = 1.2) => {
+    const steps = Math.round(secs / 0.08);
+    for (let i = 0; i < steps; i++) {
+      tone(260 + i * (520 / steps), i * 0.08, 0.12, { type: 'triangle', gain: 0.06 });
+    }
+  },
+
+  /** Drum roll under the spinning wheel — thickens as it slows. */
+  roll: (secs = 5) => {
+    for (let t = 0, gap = 0.055; t < secs; t += gap) {
+      tone(70 + Math.random() * 40, t, 0.06, { type: 'square', gain: 0.05 });
+      gap = 0.055 + (t / secs) * 0.07; // beats spread out as the wheel slows
+    }
+  },
+
+  /** Big finish for the reveal. */
+  fanfare: () => {
+    [523, 659, 784, 1047].forEach((f, i) => tone(f, i * 0.12, 0.4, { gain: 0.2 }));
+    tone(1319, 0.5, 0.7, { gain: 0.22 });
+    tone(784, 0.5, 0.7, { gain: 0.14 });
+  },
 };
 
 export const vibrate = (ms = 18) => { try { navigator.vibrate?.(ms); } catch {} };
@@ -289,18 +328,19 @@ export function endCard(ctx, { stars, msg, score = '🎉', reward = null }) {
       el('div', { class: `left-line${reward.remaining <= 2 ? ' low' : ''}`,
         text: reward.remaining === 0 ? REWARD.lastOne : REWARD.left(reward.remaining) }),
     ) : null,
-    // A medal outranks everything: send them straight to the wheel.
+    // A medal outranks everything. It's the ONLY button on the card —
+    // they earned the wheel, and a stray tap on "סיימתי" shouldn't lose it.
     reward?.medal
-      ? el('button', { class: 'btn primary medal-btn', onClick: () => ctx.claimMedal() },
-        MEDAL.claim)
-      : null,
-    el('div', { class: 'choices' },
-      // No replay button once the day's allowance for this game is gone.
-      reward && !reward.canReplay
-        ? null
-        : el('button', { class: 'btn primary', onClick: () => ctx.replay() }, T.again),
-      el('button', { class: 'btn', onClick: () => ctx.exit() }, T.done),
-    ),
+      ? el('div', { class: 'choices' },
+        el('button', { class: 'btn primary medal-btn', onClick: () => ctx.claimMedal() },
+          MEDAL.claim))
+      : el('div', { class: 'choices' },
+        // No replay button once the day's allowance for this game is gone.
+        reward && !reward.canReplay
+          ? null
+          : el('button', { class: 'btn primary', onClick: () => ctx.replay() }, T.again),
+        el('button', { class: 'btn', onClick: () => ctx.exit() }, T.done),
+      ),
   );
 }
 
@@ -388,6 +428,10 @@ export class Round {
       this.ctx.setProgress(this.results, this.total);
       this.stage.querySelectorAll('.choice').forEach((b) => (b.disabled = true));
       await wait(won ? this.pauseOk : this.pauseNo);
+      // Never start the next question while the answer is still being read
+      // out — the next prompt would cancel it mid-word.
+      await waitForSpeech();
+      if (this.dead) return;
       this.index++;
       this.#next();
     };

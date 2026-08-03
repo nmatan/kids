@@ -114,10 +114,18 @@ export const MEDAL = {
   why: (wins, plays) => `${wins} ניצחונות מתוך ${plays} משחקים היום`,
   claim: '🎖 מגיעה לך מדליה! לפתוח מתנה',
   pending: '🎁 יש לך מתנה שמחכה!',
-  spin: 'לסובב את הגלגל!',
+  spin: '🎡 לסובב את הגלגל!',
   spinning: 'מסתובב...',
   won: 'זכית ב',
   yourPrize: 'המתנה שלך',
+
+  /* The build-up. Short lines, spaced out, so each one lands before the
+     next — a spin with no suspense is just a loading bar. */
+  tease: 'מאחורי אחד השערים מחכה לך מתנה. אף אחד לא יודע איזו...',
+  ready: 'מוכנים? שלוש, שתיים, אחת...',
+  rolling: 'מסתובב, מסתובב...',
+  almost: 'רגע, זה מאט...',
+  drumEnd: 'ו... זכית ב...',
   // The wheel never shows what's on it — only what you landed on.
   secret: 'בגלגל מסתתרות מתנות סודיות 🤫 מגלים רק את זו שיוצאת!',
   progress: (done, total) => `${done} מתוך ${total} משחקים היום`,
@@ -206,7 +214,7 @@ export const REWARD = {
  * @param rows leaderboard() output for the week, already including this play
  */
 export function cheerLine({ profile, stars, points, remaining, rows }) {
-  const praise = ['ניסיון יפה!', 'כל הכבוד!', 'יפה מאוד!', 'וואו, מושלם!'][stars];
+  const praise = ['ניסיון יפה!', 'כל הכבוד!', 'יפה מאוד!', 'מעולה! מושלם!'][stars];
   const got = points === 0
     ? 'הפעם בלי נקודה, אבל זה נחשב מהמשחקים של היום.'
     : points === 1 ? 'קיבלת נקודה!' : `קיבלת ${points} נקודות.`;

@@ -100,7 +100,7 @@ degrades into a reading exercise rather than breaking.
 
 ### The daily allowance
 
-**5 plays of each game, per kid, per day.** Each game has its own allowance, so
+**3 plays of each game, per kid, per day** — 5 games x 3 = 15 games a day. Each game has its own allowance, so
 cards lock one at a time — using up לוח הכפל doesn't touch מה השעה?. To collect
 the day's points you have to play across the shelf rather than grinding one
 favourite.
@@ -111,7 +111,7 @@ bookmark can't get around it. Resets at local midnight, and the number is
 configurable in settings.
 
 **Every kid has exactly five games, always** ([`GAMES_PER_KID`](js/registry.js)).
-Equal shelves mean equal daily ceilings — 25 plays each — which is what makes the
+Equal shelves mean equal daily ceilings — 15 games each — which is what makes the
 scoreboard a fair contest. Each level's default list is already five, and
 `gamesForProfile()` enforces it whatever settings say: too many gets trimmed, too
 few gets padded with the games closest to that kid's level, so a half-finished
@@ -168,9 +168,14 @@ they actually like:
 
 | kid | theme | their space |
 |-----|-------|-------------|
-| אביתר | 🤸 קפוארה | הרודה של אביתר — green, drums and berimbau, *אשֶׁה!* |
-| אמיתי | 🥋 ג׳ודו | הדוג׳ו של אמיתי — blue, belts and tatami, *איפון!* |
-| עברי | ⚽ כדורים | המגרש של עברי — orange, every kind of ball, *גול!* |
+| אביתר | 🤸 קפוארה | green, drums and cartwheels |
+| אמיתי | 🥋 ג׳ודו | blue, belts and tatami |
+| עברי | ⚽ כדורים | orange, every kind of ball |
+
+**The pictures carry the theme; the words stay plain.** An earlier version used
+real capoeira and judo vocabulary — roda, dojo, axé, ippon — and it just read as
+noise to a child who wants to play. Icons and colours say "this is yours"
+perfectly well on their own, so the writing is ordinary encouragement.
 
 The theme drives the shelf's colours, a faint icon backdrop, the heading, the
 card styling — and the **streak effect**: every third clean answer in a row

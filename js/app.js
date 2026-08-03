@@ -585,7 +585,12 @@ function playScreen(profile, game) {
     },
 
     claimMedal() { go(`/p/${profile.id}/wheel`); },
-    exit() { go(`/p/${profile.id}`); },
+    exit() {
+      // An unspun medal always wins over going back — they earned it,
+      // and it must not be possible to tap past it by accident.
+      if (pendingMedal(profile.id)) return go(`/p/${profile.id}/wheel`);
+      go(`/p/${profile.id}`);
+    },
     replay() {
       // Belt and braces: the card hides the replay button when the day's
       // allowance is gone, but never let a replay slip through anyway.
@@ -611,6 +616,7 @@ function wheelScreen(profile) {
   if (!medal) return medalsScreen(); // nothing to spin — don't let them farm it
 
   const theme = themeFor(profile);
+  setTimeout(() => speak(MEDAL.tease, { rate: 0.92 }), 500);
   const colors = ['#ff6b6b', '#ffd23f', '#37d67a', '#4cc9f0', '#7c5cff', '#f72585', '#ff9f1c'];
 
   const wheel = el('div', {
@@ -632,34 +638,61 @@ function wheelScreen(profile) {
   );
 
   const result = el('div', { class: 'prize' });
+  const status = el('div', { class: 'wheel-status' });
   const spinBtn = el('button', { class: 'btn primary big-btn' }, MEDAL.spin);
+
+  const SPIN_MS = 5600;
 
   spinBtn.addEventListener('click', () => {
     if (spinBtn.disabled) return;
     spinBtn.disabled = true;
-    spinBtn.textContent = MEDAL.spinning;
-    sfx.tap();
+    spinBtn.remove();
 
     const i = randInt(0, PRIZES.length - 1);
-    // Segment i is centred at (i+0.5)*SEG clockwise from the top pointer,
-    // so spinning by -that (plus whole turns) parks it under the pointer.
-    wheel.style.transition = 'transform 4.2s cubic-bezier(0.15, 0.7, 0.15, 1)';
-    wheel.style.transform = `rotate(${360 * 5 - (i + 0.5) * SEG}deg)`;
+    const prize = PRIZES[i];
+
+    // --- the build-up. Narration is spaced so no line cuts the last one.
+    status.textContent = MEDAL.ready;
+    speak(MEDAL.ready, { rate: 0.95 });
+    sfx.rise(1.2);
 
     setTimeout(() => {
-      const prize = PRIZES[i];
+      // Segment i is centred at (i+0.5)*SEG clockwise from the top pointer,
+      // so spinning by -that (plus whole turns) parks it under the pointer.
+      wheel.classList.add('spinning');
+      wheel.style.transition = `transform ${SPIN_MS}ms cubic-bezier(0.12, 0.72, 0.09, 1)`;
+      wheel.style.transform = `rotate(${360 * 8 - (i + 0.5) * SEG}deg)`;
+      sfx.roll(SPIN_MS / 1000);
+      status.textContent = MEDAL.rolling;
+      speak(MEDAL.rolling, { rate: 1 });
+    }, 1500);
+
+    // it visibly slows near the end — say so, so they lean in
+    setTimeout(() => {
+      status.textContent = MEDAL.almost;
+      speak(MEDAL.almost, { rate: 0.95 });
+    }, 1500 + SPIN_MS - 1900);
+
+    setTimeout(() => {
+      status.textContent = '';
+      wheel.classList.remove('spinning');
+      wheel.classList.add('landed');
+      speak(MEDAL.drumEnd, { rate: 0.9 });
+      sfx.fanfare();
+    }, 1500 + SPIN_MS);
+
+    // ...and only then is the prize itself revealed
+    setTimeout(() => {
       setMedalPrize(profile.id, medal.day, prize.text);
       clear(result);
       result.append(
         el('div', { class: 'prize-emoji', text: prize.emoji }),
         el('div', { class: 'prize-text', text: prize.text }),
       );
-      celebrate(120);
-      burst(theme.icons, 24);
-      sfx.win();
-      speak(`${MEDAL.won}${prize.text}`, { rate: 0.9 });
-      spinBtn.remove();
-    }, 4400);
+      celebrate(140);
+      burst(theme.icons, 28);
+      speak(`${MEDAL.won}${prize.text}!`, { rate: 0.88 });
+    }, 1500 + SPIN_MS + 1400);
   });
 
   return el('div', { class: 'screen themed wheel-screen', style: themeVars(theme) },
@@ -677,6 +710,7 @@ function wheelScreen(profile) {
         el('div', { class: 'wheel-pin' }, '▼'),
         wheel,
       ),
+      status,
       result,
       spinBtn,
       el('button', {

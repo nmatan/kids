@@ -144,8 +144,11 @@ export function mount(stage, ctx) {
         } else {
           api.no(btn);
           api.reveal(rightBtn);
-          await wait(500);
-          speak(answer.he, { rate: 0.8 }); // hear the right one before moving on
+          await wait(400);
+          // Say the correct translation out loud. Getting it wrong is the
+          // moment they're most likely to actually listen, and Round waits
+          // for the voice to finish before moving on.
+          speak(`התשובה הנכונה היא: ${answer.he}`, { rate: 0.8 });
         }
       } }, s.he);
       if (s.he === answer.he) rightBtn = btn;

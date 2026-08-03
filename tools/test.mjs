@@ -178,7 +178,8 @@ const now = new Date();
 
 cfg.resetSettings();
 check('defaults: 1 point per win', cfg.get('pointsPerWin') === 1, `got ${cfg.get('pointsPerWin')}`);
-check('defaults: 5 plays of each game per day', cfg.get('dailyLimit') === 5, `got ${cfg.get('dailyLimit')}`);
+check('defaults: 3 plays of each game per day', cfg.get('dailyLimit') === 3,
+  `got ${cfg.get('dailyLimit')}`);
 
 cfg.set('pointsPerWin', 7);
 check('changing points per win takes effect', store.pointsFor(3) === 7, `got ${store.pointsFor(3)}`);
@@ -604,13 +605,32 @@ check('the wheel screen draws', find('wheel').length === 1);
 check(`the wheel has all ${PRIZES.length} prizes`, find('wseg').length === PRIZES.length,
   `got ${find('wseg').length}`);
 
-find('btn').find((b) => b.textContent.includes(MEDAL.spin))?.dispatch('click');
-await sleep(4700);
+// the spin is a deliberately drawn-out build-up, so give it room
+find('btn').find((b) => b.textContent.includes('לסובב'))?.dispatch('click');
+await sleep(9500);
 const spun = store.medalsFor(kidA.id)[0];
 check('spinning lands on a real prize',
   PRIZES.some((p) => p.text === spun.prize), `got "${spun.prize}"`);
 check('the prize is shown on screen', find('prize-text').length === 1);
 check('a spent medal is no longer pending', store.pendingMedal(kidA.id) === null);
+
+/* the wheel must not be skippable — they earned it */
+{
+  const { endCard } = await load('js/kit.js');
+  const withMedal = endCard({ replay() {}, exit() {}, claimMedal() {} },
+    { stars: 3, msg: 'x', reward: { points: 1, remaining: 0, rank: 0, canReplay: false,
+      medal: { day: '2026-01-01', wins: 15, plays: 15 } } });
+  const withoutMedal = endCard({ replay() {}, exit() {}, claimMedal() {} },
+    { stars: 3, msg: 'x', reward: { points: 1, remaining: 2, rank: 0, canReplay: true, medal: null } });
+
+  const labels = (node) => node.querySelectorAll('btn').map((b) => b.textContent);
+  check('a medal leaves only the one button on the end card',
+    labels(withMedal).length === 1, labels(withMedal).join(' | '));
+  check('that button opens the wheel',
+    labels(withMedal)[0].includes('מדליה'), labels(withMedal)[0]);
+  check('without a medal the usual buttons are there',
+    labels(withoutMedal).length === 2, labels(withoutMedal).join(' | '));
+}
 
 await navigate('#/medals');
 check('the medal shelf lists it', find('medal').length >= 1);

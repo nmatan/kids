@@ -308,6 +308,27 @@ button {
 
 .wico { font-size: clamp(24px, 6vw, 38px); line-height: 1; font-style: normal; }
 
+.wheel-status {
+  min-height: 34px;
+  font-size: clamp(18px, 3.6vw, 26px);
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+/* the wheel breathes while it spins, then settles with a flash */
+.wheel.spinning { animation: wheel-pulse 700ms ease-in-out infinite; }
+.wheel.landed { animation: wheel-land 700ms ease-out; }
+
+@keyframes wheel-pulse {
+  0%, 100% { box-shadow: 0 10px 0 rgba(0, 0, 0, 0.35), 0 0 30px rgba(255, 210, 63, 0.35); }
+  50% { box-shadow: 0 10px 0 rgba(0, 0, 0, 0.35), 0 0 60px rgba(255, 210, 63, 0.75); }
+}
+
+@keyframes wheel-land {
+  0% { box-shadow: 0 10px 0 rgba(0, 0, 0, 0.35), 0 0 90px rgba(255, 255, 255, 0.95); }
+  100% { box-shadow: 0 10px 0 rgba(0, 0, 0, 0.35), 0 0 34px rgba(255, 210, 63, 0.5); }
+}
+
 .prize { min-height: 70px; display: grid; place-items: center; gap: 6px; }
 .prize-emoji { font-size: clamp(48px, 12vw, 84px); animation: earned-pop 800ms both; }
 

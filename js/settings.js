@@ -13,9 +13,9 @@
 const KEY = 'kids-games:settings:v1';
 
 export const DEFAULTS = {
-  /** Games a kid may finish per DAY, across their whole shelf.
-      Per-kid rather than per-game, so shelf size can't buy points. */
-  dailyLimit: 5,
+  /** Plays of EACH game per kid per day. Five games on a shelf at 3
+      each is 15 games a day — enough to matter, few enough to finish. */
+  dailyLimit: 3,
 
   /** Points for winning a game. Every win is worth the same, so the
       kids can count the scoreboard themselves. */
