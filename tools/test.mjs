@@ -136,95 +136,150 @@ await navigate('#/leaders');
 check(`leaderboard lists all ${PROFILES.length} kids`,
   find('board-row').length === PROFILES.length, `got ${find('board-row').length}`);
 
-/* ---------- 3. scoring windows ---------- */
+/* ---------- 3. settings ---------- */
 
-console.log('\nScoring\n');
+console.log('\nSettings\n');
 
 const store = await load('js/store.js');
+const cfg = await load('js/settings.js');
+const { cheerLine } = await load('js/text.js');
+const { gamesForProfile } = await load('js/registry.js');
+
 const DAY = 86400000;
 const [kidA, kidB, kidC] = PROFILES;
 const now = new Date();
 
-// Build the log by hand so plays can be placed in past weeks and months.
-const play = (ms, p, stars) => ({ p: p.id, g: 'memory', s: stars, pts: store.pointsFor(stars), at: ms });
-const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15).getTime();
+cfg.resetSettings();
+check('defaults: 1 point per win', cfg.get('pointsPerWin') === 1, `got ${cfg.get('pointsPerWin')}`);
+check('defaults: a per-kid daily allowance', cfg.get('dailyLimit') === 5, `got ${cfg.get('dailyLimit')}`);
 
-globalThis.localStorage.setItem('kids-games:v2', JSON.stringify({
-  best: {},
-  log: [
-    play(Date.now(), kidA, 3),                            // 30 this week
-    play(Date.now(), kidB, 1), play(Date.now(), kidB, 1), // 20 this week
-    play(store.startOfWeek(now) - DAY, kidC, 3),          // 30 earlier this month
-    play(lastMonth, kidC, 3),                             // 30 before this month
-  ],
-}));
+cfg.set('pointsPerWin', 7);
+check('changing points per win takes effect', store.pointsFor(3) === 7, `got ${store.pointsFor(3)}`);
+cfg.resetSettings();
+check('resetting settings restores the default', store.pointsFor(3) === 1);
 
-const week = store.leaderboard(PROFILES, 'week');
-check('week counts only this week, ranked highest first',
-  week[0].profile.id === kidA.id && week[0].points === 30
-    && week[1].points === 20 && week[2].points === 0,
-  week.map((r) => `${r.profile.name}=${r.points}`).join(' '));
+check('a win scores, whatever the star count',
+  store.pointsFor(1) === 1 && store.pointsFor(2) === 1 && store.pointsFor(3) === 1);
+check('finishing with no stars scores nothing', store.pointsFor(0) === 0);
 
-const month = store.leaderboard(PROFILES, 'month').find((r) => r.profile.id === kidC.id);
-check('month includes earlier this month but not last month', month.points === 30,
-  `got ${month.points}`);
+// per-kid game selection overrides the level default
+const levelShelf = gamesForProfile(kidC).map((g) => g.meta.id);
+cfg.setEnabledGames(kidC.id, ['times', 'memory']);
+check('a kid can be given games from any level',
+  gamesForProfile(kidC).map((g) => g.meta.id).join() === 'times,memory',
+  gamesForProfile(kidC).map((g) => g.meta.id).join());
+cfg.clearEnabledGames(kidC.id);
+check('clearing the override restores their level shelf',
+  gamesForProfile(kidC).map((g) => g.meta.id).join() === levelShelf.join());
 
-const all = store.leaderboard(PROFILES, 'all').find((r) => r.profile.id === kidC.id);
-check('all time counts everything', all.points === 60, `got ${all.points}`);
+check('the week start day is configurable', (() => {
+  cfg.set('weekStartsOn', 1);
+  const monday = new Date(store.startOfWeek(now)).getDay() === 1;
+  cfg.set('weekStartsOn', 0);
+  const sunday = new Date(store.startOfWeek(now)).getDay() === 0;
+  return monday && sunday;
+})());
 
-check('every kid appears even with no plays', week.length === PROFILES.length);
-check('the week starts on Sunday', new Date(store.startOfWeek(now)).getDay() === 0);
-check('stars map to points', store.pointsFor(3) === 30 && store.pointsFor(0) === 5);
+/* ---------- 3b. scoring windows ---------- */
 
-/* ---------- 3b. daily allowance ---------- */
+console.log('\nScoring\n');
 
-console.log('\nDaily limit\n');
-
-const { cheerLine } = await load('js/text.js');
-const limitKid = PROFILES[0];
-const limitGame = gamesForLevel(limitKid.level)[0].meta.id;
+const play = (ms, p, stars, g = 'memory') => ({ p: p.id, g, s: stars, at: ms });
 const seed = (entries) => globalThis.localStorage.setItem('kids-games:v2',
   JSON.stringify({ best: {}, log: entries }));
 
+const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15).getTime();
+
+seed([
+  play(Date.now(), kidA, 3), play(Date.now(), kidA, 2), play(Date.now(), kidA, 1), // 3 pts
+  play(Date.now(), kidB, 3),                                                       // 1 pt
+  play(Date.now(), kidB, 0),                                                       // no pt
+  play(store.startOfWeek(now) - DAY, kidC, 3),   // earlier this month
+  play(lastMonth, kidC, 3),                      // before this month
+]);
+
+const week = store.leaderboard(PROFILES, 'week');
+check('week counts only this week, ranked highest first',
+  week[0].profile.id === kidA.id && week[0].points === 3
+    && week[1].points === 1 && week[2].points === 0,
+  week.map((r) => `${r.profile.name}=${r.points}`).join(' '));
+
+check('a zero-star game counts as played but scores nothing',
+  week.find((r) => r.profile.id === kidB.id).games === 2
+    && week.find((r) => r.profile.id === kidB.id).points === 1);
+
+const month = store.leaderboard(PROFILES, 'month').find((r) => r.profile.id === kidC.id);
+check('month includes earlier this month but not last month', month.points === 1,
+  `got ${month.points}`);
+
+const all = store.leaderboard(PROFILES, 'all').find((r) => r.profile.id === kidC.id);
+check('all time counts everything', all.points === 2, `got ${all.points}`);
+
+check('every kid appears even with no plays', week.length === PROFILES.length);
+
+/* ---------- 3c. daily allowance ---------- */
+
+console.log('\nDaily limit\n');
+
+const limit = store.dailyLimit();
+
 seed([]);
-check(`a fresh day allows ${store.DAILY_LIMIT} plays`,
-  store.remainingToday(limitKid.id, limitGame) === store.DAILY_LIMIT);
+check(`a fresh day allows ${limit} games`, store.remainingToday(kidA.id) === limit);
 
-seed(Array.from({ length: 4 }, () => play(Date.now(), limitKid, 2)).map((e) => ({ ...e, g: limitGame })));
-check('each play uses one up', store.remainingToday(limitKid.id, limitGame) === store.DAILY_LIMIT - 4,
-  `got ${store.remainingToday(limitKid.id, limitGame)}`);
-
-seed(Array.from({ length: store.DAILY_LIMIT + 3 }, () => play(Date.now(), limitKid, 3)).map((e) => ({ ...e, g: limitGame })));
-check('it never goes negative', store.remainingToday(limitKid.id, limitGame) === 0,
-  `got ${store.remainingToday(limitKid.id, limitGame)}`);
-
-// yesterday's plays must not eat into today
-seed(Array.from({ length: store.DAILY_LIMIT }, () => play(store.startOfDay(now) - 1000, limitKid, 3)).map((e) => ({ ...e, g: limitGame })));
-check('the allowance resets at midnight',
-  store.remainingToday(limitKid.id, limitGame) === store.DAILY_LIMIT,
-  `got ${store.remainingToday(limitKid.id, limitGame)}`);
-
-// the limit is per game, not shared across the shelf
-const otherGame = gamesForLevel(limitKid.level)[1].meta.id;
-seed(Array.from({ length: store.DAILY_LIMIT }, () => play(Date.now(), limitKid, 3)).map((e) => ({ ...e, g: limitGame })));
-check('the limit is per game, not shared',
-  store.remainingToday(limitKid.id, limitGame) === 0
-    && store.remainingToday(limitKid.id, otherGame) === store.DAILY_LIMIT);
+// spread across DIFFERENT games — the allowance is shared, not per game
+seed([
+  play(Date.now(), kidA, 3, 'times'),
+  play(Date.now(), kidA, 2, 'memory'),
+  play(Date.now(), kidA, 1, 'clock'),
+]);
+check('the allowance is shared across every game, not per game',
+  store.remainingToday(kidA.id) === limit - 3, `got ${store.remainingToday(kidA.id)}`);
 check('one kid using theirs up does not affect another',
-  store.remainingToday(PROFILES[1].id, limitGame) === store.DAILY_LIMIT);
+  store.remainingToday(kidB.id) === limit);
+
+seed(Array.from({ length: limit + 3 }, (_, i) => play(Date.now(), kidA, 3, `g${i}`)));
+check('it never goes negative', store.remainingToday(kidA.id) === 0,
+  `got ${store.remainingToday(kidA.id)}`);
+
+seed(Array.from({ length: limit }, () => play(store.startOfDay(now) - 1000, kidA, 3)));
+check('the allowance resets at midnight', store.remainingToday(kidA.id) === limit,
+  `got ${store.remainingToday(kidA.id)}`);
+
+cfg.set('dailyLimit', 3);
+seed([]);
+check('changing the limit in settings takes effect', store.remainingToday(kidA.id) === 3);
+cfg.resetSettings();
 
 // ...and the UI reflects it
-await navigate(`#/p/${limitKid.id}`);
-check('a used-up game is locked on the shelf', find('locked').length === 1,
-  `${find('locked').length} locked cards`);
-await navigate(`#/p/${limitKid.id}/g/${limitGame}`);
-check('opening a used-up game bounces to the shelf',
+seed(Array.from({ length: store.dailyLimit() }, () => play(Date.now(), kidA, 3)));
+await navigate(`#/p/${kidA.id}`);
+const shelfSize = gamesForProfile(kidA).length;
+check('every card locks once the day is used up', find('locked').length === shelfSize,
+  `${find('locked').length} of ${shelfSize} locked`);
+await navigate(`#/p/${kidA.id}/g/${gamesForProfile(kidA)[0].meta.id}`);
+check('opening a game with none left bounces to the shelf',
   find('game-card').length > 0 && find('choice').length === 0);
-await navigate(`#/p/${limitKid.id}/g/${otherGame}`);
-check('a game with plays left still opens',
+
+seed([]);
+await navigate(`#/p/${kidA.id}/g/${gamesForProfile(kidA)[0].meta.id}`);
+check('with games left it opens normally',
   find('choice').length > 0 || find('mem-card').length > 0);
 
-/* ---------- 3c. the spoken cheer ---------- */
+// a game that isn't on this kid's shelf can't be opened by URL
+cfg.setEnabledGames(kidA.id, ['memory']);
+await navigate(`#/p/${kidA.id}/g/times`);
+check('a game off the shelf cannot be opened by URL', find('game-card').length > 0);
+cfg.clearEnabledGames(kidA.id);
+
+/* ---------- 3d. the parent gate ---------- */
+
+console.log('\nParent gate\n');
+
+await navigate('#/settings');
+check('settings are behind a gate', find('gate-input').length === 1, 'no gate shown');
+check('the gate does not show the settings', find('set-row').length === 0);
+
+/* ---------- 3e. the spoken cheer ---------- */
 
 console.log('\nCheer\n');
 
@@ -232,30 +287,31 @@ const board = (...pts) => PROFILES.map((p, i) => ({ profile: p, points: pts[i], 
   .sort((a, b) => b.points - a.points);
 
 const leading = cheerLine({
-  profile: PROFILES[0], stars: 3, points: 30, remaining: 5, rows: board(120, 40, 20),
+  profile: kidA, stars: 3, points: 1, remaining: 3, rows: board(12, 4, 2),
 });
-check('leader is told their margin', leading.includes('80') && leading.includes(PROFILES[1].name),
-  leading);
+check('leader is told their margin', leading.includes('8') && leading.includes(kidB.name), leading);
 
 const chased = cheerLine({
-  profile: PROFILES[0], stars: 3, points: 30, remaining: 5, rows: board(120, 110, 20),
+  profile: kidA, stars: 3, points: 1, remaining: 3, rows: board(12, 11, 2),
 });
 check('a narrow lead sounds urgent', chased.includes('נושף'), chased);
 
 const chasing = cheerLine({
-  profile: PROFILES[1], stars: 2, points: 20, remaining: 5, rows: board(120, 100, 20),
+  profile: kidB, stars: 2, points: 1, remaining: 3, rows: board(12, 10, 2),
 });
 check('the runner-up is told the gap to catch',
-  chasing.includes('20') && chasing.includes(PROFILES[0].name), chasing);
+  chasing.includes('2') && chasing.includes(kidA.name), chasing);
 
 const lastPlay = cheerLine({
-  profile: PROFILES[0], stars: 3, points: 30, remaining: 0, rows: board(120, 40, 20),
+  profile: kidA, stars: 3, points: 1, remaining: 0, rows: board(12, 4, 2),
 });
-check('the last play of the day says come back tomorrow', lastPlay.includes('מחר'), lastPlay);
-check('a normal play says how many are left',
-  leading.includes('5') && !leading.includes('מחר'), leading);
-check('every cheer names points and stays short',
-  [leading, chased, chasing, lastPlay].every((s) => s.includes('נקודות') && s.length < 260));
+check('the last game of the day says come back tomorrow', lastPlay.includes('מחר'), lastPlay);
+check('a normal game says how many are left',
+  leading.includes('3') && !leading.includes('מחר'), leading);
+check('one point is phrased in the singular', leading.includes('נקודה'), leading);
+check('every cheer stays short enough to listen to',
+  [leading, chased, chasing, lastPlay].every((s) => s.length < 260));
+
 
 /* ---------- 4. read-along highlighting ---------- */
 

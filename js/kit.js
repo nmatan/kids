@@ -4,6 +4,7 @@
    --------------------------------------------------------------- */
 
 import { T, REWARD } from './text.js';
+import { get } from './settings.js';
 
 /* ---------- random ---------- */
 
@@ -98,7 +99,7 @@ export const hasVoice = (lang = defaultLang) => Boolean(voiceFor(lang));
  * every prompt is on screen as text too, so nothing is lost.
  */
 export function speak(text, { rate = 0.9, pitch = 1.1, interrupt = true, lang } = {}) {
-  if (!HAS_TTS || !text) return;
+  if (!HAS_TTS || !text || !get('speech')) return;
   try {
     if (interrupt) speechSynthesis.cancel();
     const code = (lang || defaultLang).toLowerCase().slice(0, 2);
@@ -127,6 +128,7 @@ export const stopSpeech = () => { try { speechSynthesis.cancel(); } catch {} };
  * Returns a cancel function.
  */
 export function speakSentence(text, { lang, rate = 0.8, onWord, onDone } = {}) {
+  const muted = !get('speech');
   const words = String(text).trim().split(/\s+/);
 
   // Where each word starts in the string, to map charIndex -> word.
@@ -159,7 +161,8 @@ export function speakSentence(text, { lang, rate = 0.8, onWord, onDone } = {}) {
     timers.push(setTimeout(finish, acc + 400));
   };
 
-  if (!HAS_TTS) { onWord?.(0); estimate(); return cancel; }
+  // Muted still walks the highlight, so the read-along works silently.
+  if (!HAS_TTS || muted) { onWord?.(0); estimate(); return cancel; }
 
   try {
     speechSynthesis.cancel();
@@ -197,6 +200,7 @@ let ac = null;
 const audio = () => (ac ||= new (window.AudioContext || window.webkitAudioContext)());
 
 function tone(freq, start, dur, { type = 'sine', gain = 0.18 } = {}) {
+  if (!get('sound')) return;
   try {
     const ctx = audio();
     if (ctx.state === 'suspended') ctx.resume();
@@ -226,6 +230,7 @@ export const vibrate = (ms = 18) => { try { navigator.vibrate?.(ms); } catch {} 
 /* ---------- confetti ---------- */
 
 export function celebrate(count = 60) {
+  if (!get('confetti')) return;
   const layer = el('div', { class: 'confetti' });
   const colors = ['#ffd23f', '#37d67a', '#7c5cff', '#ff5c6c', '#4cc9f0', '#f72585'];
   for (let i = 0; i < count; i++) {
@@ -294,7 +299,7 @@ export class Round {
   constructor(stage, ctx, opts = {}) {
     this.stage = stage;
     this.ctx = ctx;
-    this.total = opts.rounds ?? 8;
+    this.total = get('rounds') || opts.rounds || 8;
     this.pauseOk = opts.pauseOk ?? 800;
     this.pauseNo = opts.pauseNo ?? 900;
     this.forgiving = opts.forgiving ?? false;

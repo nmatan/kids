@@ -49,14 +49,56 @@ export const T = {
 /** Masculine / feminine picker, driven by the profile's `gender`. */
 const g = (p, mas, fem) => (p?.gender === 'f' ? fem : mas);
 
+export const SET = {
+  title: 'הגדרות',
+  gate: 'רק להורים',
+  gateHint: 'פתרו כדי להיכנס',
+  gateWrong: 'לא נכון, נסו שוב',
+  enter: 'כניסה',
+
+  playSection: 'משחק',
+  dailyLimit: 'משחקים ליום לכל ילד',
+  dailyLimitHint: 'סך הכל, לא לכל משחק בנפרד — כדי שגודל המדף לא ייתן יתרון',
+  pointsPerWin: 'נקודות לכל ניצחון',
+  pointsPerWinHint: 'כל ניצחון שווה אותו דבר, בכל משחק ובכל רמה',
+  rounds: 'שאלות במשחק',
+  roundsAuto: 'ברירת מחדל',
+  roundsHint: 'עוקף את מספר השאלות המובנה בכל משחק',
+
+  gamesSection: 'משחקים לכל ילד',
+  gamesHint: 'אפשר לתת כל משחק לכל ילד, גם מרמה אחרת',
+  byLevel: 'לפי הרמה',
+  useLevel: '↺ חזרה לרמה',
+  noneChosen: 'לא נבחר אף משחק',
+
+  feelSection: 'קול ותצוגה',
+  speech: 'הקראה בקול',
+  sound: 'אפקטים קוליים',
+  confetti: 'קונפטי בסיום',
+
+  boardSection: 'טבלת המובילים',
+  weekStart: 'השבוע מתחיל ביום',
+  sunday: 'ראשון',
+  monday: 'שני',
+
+  dangerSection: 'איפוס',
+  resetScores: 'איפוס כל הניקוד',
+  resetScoresHint: 'מוחק את כל הנקודות והכוכבים של כולם. אי אפשר לבטל.',
+  resetSettings: 'החזרת הגדרות לברירת מחדל',
+  confirm: 'בטוח? לחצו שוב',
+  storageNote:
+    'הכל נשמר על המכשיר הזה בלבד (localStorage) — אין שרת ואין חשבון. ' +
+    'ניקוד בטאבלט לא מסתנכרן עם מכשיר אחר, ומחיקת נתוני האתר בדפדפן תמחק אותו.',
+};
+
 export const REWARD = {
-  earned: (n) => `+${n} נקודות`,
+  earned: (n) => (n === 1 ? '+1 נקודה' : `+${n} נקודות`),
   rank: (i) => ['🥇 מקום ראשון השבוע', '🥈 מקום שני השבוע', '🥉 מקום שלישי השבוע'][i]
     || `מקום ${i + 1} השבוע`,
   left: (n) => (n === 1 ? 'נשאר עוד משחק אחד היום' : `נשארו עוד ${n} משחקים היום`),
   lastOne: 'זה היה האחרון להיום',
   lockedTitle: 'נגמר להיום',
-  lockedHint: 'מחר יהיו עוד 10',
+  lockedHint: (limit) => `מחר יהיו עוד ${limit} משחקים. נתראה!`,
   leftShort: (n) => `נשארו ${n} היום`,
 };
 
@@ -70,7 +112,9 @@ export const REWARD = {
  */
 export function cheerLine({ profile, stars, points, remaining, rows }) {
   const praise = ['ניסיון יפה!', 'כל הכבוד!', 'יפה מאוד!', 'וואו, מושלם!'][stars];
-  const got = `${g(profile, 'קיבלת', 'קיבלת')} ${points} נקודות.`;
+  const got = points === 0
+    ? 'הפעם בלי נקודה, אבל זה נחשב מהמשחקים של היום.'
+    : points === 1 ? 'קיבלת נקודה!' : `קיבלת ${points} נקודות.`;
 
   const me = rows.findIndex((r) => r.profile.id === profile.id);
   const mine = rows[me]?.points ?? 0;
@@ -101,10 +145,10 @@ export function cheerLine({ profile, stars, points, remaining, rows }) {
   }
 
   const left = remaining === 0
-    ? `זה היה האחרון להיום במשחק הזה. ${g(profile, 'תחזור', 'תחזרי')} מחר לעוד עשרה!`
+    ? `זה היה המשחק האחרון שלך להיום. ${g(profile, 'תחזור', 'תחזרי')} מחר!`
     : remaining === 1
-      ? 'נשאר לך עוד משחק אחד כזה היום.'
-      : `נשארו לך עוד ${remaining} משחקים כאלה היום.`;
+      ? 'נשאר לך עוד משחק אחד היום, תבחר אותו טוב.'
+      : `נשארו לך עוד ${remaining} משחקים היום.`;
 
   return `${praise} ${got} ${standing} ${left}`;
 }

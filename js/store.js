@@ -6,21 +6,34 @@
      log[]                    one entry per finished game, for the
                               week / month / all-time leaderboards
 
-   Points are awarded per FINISHED GAME based on stars, not on how many
-   questions were in it. That's deliberate: a 2-year-old finding three
-   animals and a 7-year-old getting twelve times-tables questions right
-   both earn 30 points. The competition is about playing well at your own
-   level, not about who got the harder games.
+   Scoring is deliberately flat: one point per game won, whatever the
+   game and whatever the level. A 2-year-old finding three animals and a
+   7-year-old getting twelve times-tables questions right both earn the
+   same point, and the daily allowance is per kid rather than per game,
+   so neither a bigger shelf nor a harder game buys an advantage. It also
+   means the kids can count the board themselves.
+
+   Note there is no server and no database — this is localStorage on the
+   device, so each tablet keeps its own scores.
    --------------------------------------------------------------- */
+
+import { get } from './settings.js';
 
 const KEY = 'kids-games:v2';
 const MAX_LOG = 3000; // ~years of play; keeps localStorage small
 
-export const POINTS = { 3: 30, 2: 20, 1: 10, 0: 5 };
-export const pointsFor = (stars) => POINTS[stars] ?? 0;
+/**
+ * Every win is worth the same — one point by default. A game counts as a
+ * win at one star or better; finishing with none scores nothing.
+ *
+ * Points are always recomputed from the stored star rating rather than
+ * read back from the log, so changing pointsPerWin in settings rescales
+ * past games too and the board never mixes two scoring systems.
+ */
+export const pointsFor = (stars) => (stars >= 1 ? get('pointsPerWin') : 0);
 
-/** How many times a kid may play any single game per day. */
-export const DAILY_LIMIT = 10;
+/** Games a kid may finish per day, across their whole shelf. */
+export const dailyLimit = () => get('dailyLimit');
 
 function read() {
   try {
@@ -65,22 +78,23 @@ export function startOfDay(now = new Date()) {
   return d.getTime();
 }
 
-/** How many times this kid has finished this game today. */
-export function playsToday(profileId, gameId, now = new Date()) {
+/** How many games this kid has finished today, across every game. */
+export function playsToday(profileId, now = new Date()) {
   const since = startOfDay(now);
-  return read().log.filter((e) => e.p === profileId && e.g === gameId && e.at >= since).length;
+  return read().log.filter((e) => e.p === profileId && e.at >= since).length;
 }
 
-/** Plays left today, 0 when they've used them all up. */
-export function remainingToday(profileId, gameId, now = new Date()) {
-  return Math.max(0, DAILY_LIMIT - playsToday(profileId, gameId, now));
+/** Games left today, 0 once they've used the day's allowance up. */
+export function remainingToday(profileId, now = new Date()) {
+  return Math.max(0, dailyLimit() - playsToday(profileId, now));
 }
 
-/** Midnight on the most recent Sunday — the week starts on Sunday here. */
+/** Midnight on the most recent week-start day (Sunday unless configured). */
 export function startOfWeek(now = new Date()) {
+  const startDay = get('weekStartsOn') ?? 0;
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay());
+  d.setDate(d.getDate() - ((d.getDay() - startDay + 7) % 7));
   return d.getTime();
 }
 
@@ -113,7 +127,7 @@ export function leaderboard(profiles, period = 'all', now = new Date()) {
     if (entry.at < since) continue;
     const row = totals.get(entry.p);
     if (!row) continue; // a profile that's since been removed
-    row.points += entry.pts ?? pointsFor(entry.s);
+    row.points += pointsFor(entry.s);
     row.stars += entry.s;
     row.games++;
   }
@@ -126,7 +140,7 @@ export function pointsIn(profileId, period = 'all', now = new Date()) {
   const since = periodStart(period, now);
   return read().log
     .filter((e) => e.p === profileId && e.at >= since)
-    .reduce((sum, e) => sum + (e.pts ?? pointsFor(e.s)), 0);
+    .reduce((sum, e) => sum + pointsFor(e.s), 0);
 }
 
 export function totalStars(profileId) {

@@ -18,6 +18,7 @@ import * as times from './games/times.js';
 import * as clock from './games/clock.js';
 import * as spelling from './games/spelling.js';
 import * as translate from './games/translate.js';
+import { enabledGames } from './settings.js';
 
 export const GAMES = [
   animals, colors, counting,          // level 1
@@ -29,3 +30,14 @@ export const GAMES = [
 export const gamesForLevel = (level) => GAMES.filter((g) => g.meta.levels.includes(level));
 
 export const getGame = (id) => GAMES.find((g) => g.meta.id === id) || null;
+
+/**
+ * The shelf a kid actually sees. Settings can override it per kid (any
+ * game can be given to any kid there); with no override they get the
+ * games matching their level.
+ */
+export function gamesForProfile(profile) {
+  const chosen = enabledGames(profile.id);
+  if (chosen) return GAMES.filter((g) => chosen.includes(g.meta.id));
+  return gamesForLevel(profile.level);
+}

@@ -98,61 +98,84 @@ degrades into a reading exercise rather than breaking.
 
 ## Scores and competition
 
-Finishing any game earns points:
-
-| Result | Points |
-|--------|--------|
-| ★★★    | 30 |
-| ★★☆    | 20 |
-| ★☆☆    | 10 |
-| finished | 5 |
-
-**Points come from stars, not from how many questions a game had.** That's on
-purpose: עברי finding three animals and אביתר getting twelve times-tables
-questions right both earn 30. The competition is about playing well at your own
-level, not about who got the harder games — otherwise the 7-year-old wins every
-week by default and the 2-year-old stops caring.
-
 ### The daily allowance
 
-Each kid gets **10 plays of each game per day** (`DAILY_LIMIT` in
-[js/store.js](js/store.js)). Every game card shows how many are left; at zero it
-locks with 🔒 **נגמר להיום**, and the URL is guarded too so a bookmark can't get
-around it. It resets at local midnight.
+Each kid gets **5 games per day** — a per-kid total across their whole shelf,
+not per game, so having more games on your shelf can't buy points. The home
+screen and the shelf both show how many are left; at zero every card locks and
+the route is guarded so a bookmark can't get around it. It resets at local
+midnight, and the number is configurable in settings.
 
-This is what stops one kid grinding a single easy game all afternoon — to
-maximise points you have to play across the whole shelf.
+### Points
 
-> ⚠️ **The allowance is per game, so the shelf sizes matter.** אביתר has 5 games
-> and the other two have 4, which means he can bank 50 plays a day against their
-> 40. If that starts showing up as a permanent lead, the fix is either to give
-> everyone the same number of games, or to switch `DAILY_LIMIT` to a per-kid
-> daily total instead of a per-game one.
+**One point per game won**, whatever the game and whatever the level. A win is
+one star or better; finishing with none counts against the daily allowance but
+scores nothing. Flat scoring is the point — the kids can count the board
+themselves and see who's ahead without anyone explaining it.
 
-### The reward moment
+Points are recomputed from the stored star rating every time the board is drawn
+rather than read back from the log, so changing **נקודות לכל ניצחון** in settings
+rescales past games too and the board never mixes two scoring systems.
 
-Finishing a game fires confetti, a `+30 נקודות` badge that pops in, the weekly
-rank, and the plays left today — plus a spoken Hebrew line that combines all of
-it with where they stand:
+### Where any of this is stored
 
-> וואו, מושלם! קיבלת 30 נקודות. אתה ראשון, אבל אמיתי נושף לך בעורף, רק 10 נקודות מאחורה! נשארו לך עוד 4 משחקים כאלה היום.
+**There's no database and no server.** Nothing leaves the device. GitHub Pages
+serves static files and has no idea anyone is playing.
 
-The wording lives in `cheerLine()` in [js/text.js](js/text.js) and adapts to the
-situation: a comfortable lead gets the margin, a narrow one gets told who's
-breathing down their neck, a chaser gets the exact gap to overtake, and the last
-play of the day says come back tomorrow. It never tells a kid they're losing —
-only how close the next place is.
+Everything lives in the browser's `localStorage`, under two keys:
 
-Verb forms follow each profile's `gender`, so adding a daughter later is a
-one-character change per profile.
+| key | what's in it |
+|-----|--------------|
+| `kids-games:v2` | best stars per kid per game, plus one log entry per finished game (`{kid, game, stars, timestamp}`) |
+| `kids-games:settings:v1` | everything on the settings screen |
 
-🏆 **טבלת המובילים** on the home screen ranks the three of them by
-**השבוע / החודש / כל הזמן**. The week starts on Sunday. Everyone always
-appears in the table, even on a week they haven't played, so nobody vanishes
-from the board.
+The log is the source of truth for everything — daily allowance, weekly board,
+monthly board — all of it is that list filtered by timestamp. It's capped at the
+most recent 3000 entries, which is years of play.
 
-Scores live in `localStorage` under `kids-games:v2` — they're per-tablet, and
-clearing the browser's site data resets them.
+That means:
+
+- **Scores survive** closing the app, rebooting, and going offline. It's on disk,
+  not in memory.
+- **Scores are per device.** The tablet, your phone and your PC each keep their
+  own. There's no sync and no account. If you want one scoreboard, everyone plays
+  on the tablet.
+- **Clearing the browser's site data wipes them.** So does uninstalling the PWA
+  on some Android versions.
+- **Updating the app never touches them.** The service worker version controls
+  cached *code*; `localStorage` is separate.
+
+If you ever want them shared across devices, that's the point where this needs a
+real backend — and it'd be the first dependency this project has.
+
+---
+
+## Settings
+
+Home screen → **⚙** (top corner), behind a parent gate: a two-digit
+multiplication that אביתר can't do in his head yet. The gate is per-session, so
+closing the app re-locks it. It's a speed bump, not security.
+
+| setting | what it does |
+|---------|--------------|
+| משחקים ליום לכל ילד | daily allowance, per kid, across all games |
+| נקודות לכל ניצחון | points for winning a game |
+| שאלות במשחק | questions per game — overrides each game's built-in count |
+| משחקים לכל ילד | which games each kid sees; **any game can go to any kid**, regardless of level |
+| הקראה בקול | spoken prompts and the end-of-game cheer |
+| אפקטים קוליים | beeps and chimes |
+| קונפטי בסיום | the celebration burst |
+| השבוע מתחיל ביום | Sunday or Monday, drives the weekly board |
+| איפוס כל הניקוד | wipes all scores (two-tap confirm) |
+| החזרת הגדרות | back to defaults (two-tap confirm) |
+
+Per-kid game selection starts as "whatever matches their level" and only becomes
+an explicit list once you touch it; **↺ חזרה לרמה** puts a kid back on automatic.
+
+**This is the dumping ground for future options.** To add one: a key in
+`DEFAULTS` in [js/settings.js](js/settings.js), and a `row(...)` in
+`settingsScreen()` in [js/app.js](js/app.js). The controls (`stepper`, `toggle`,
+`segment`, `dangerButton`) are already there.
 
 ---
 
@@ -161,9 +184,10 @@ clearing the browser's site data resets them.
 ### The kids
 
 [js/profiles.js](js/profiles.js) — one entry per kid. Bump `level` on a birthday
-and their shelf changes.
+and their shelf changes. To hand a single game across levels instead, use the
+settings screen — that overrides the level for that kid only.
 
-| kid | age | level | what's on their shelf |
+| kid | age | level | default shelf |
 |-----|-----|-------|------------------------|
 | אביתר | 7 | 3 | לוח הכפל · מה השעה? · מרכיבים מילה · מה זה אומר? · זיכרון |
 | אמיתי | 5 | 2 | סופרים ביחד · אותיות · חיבור וחיסור · זיכרון |

@@ -95,6 +95,8 @@ export function makeDom() {
     _d: {},
     getItem(k) { return this._d[k] ?? null; },
     setItem(k, v) { this._d[k] = String(v); },
+    removeItem(k) { delete this._d[k]; },
+    clear() { this._d = {}; },
   };
   return document;
 }
