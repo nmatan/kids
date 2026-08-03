@@ -205,6 +205,30 @@ check('every pooled game really is built for that level',
   [1, 2, 3].every((l) => poolFor(l).every((g) => g.meta.levels.includes(l))),
   [1, 2, 3].flatMap((l) => poolFor(l).filter((g) => !g.meta.levels.includes(l))
     .map((g) => `L${l}:${g.meta.id}`)).join(' '));
+/* a game offered at several levels must actually play differently at
+   each, and must say so — otherwise an age quietly gets a game that was
+   never tuned for it */
+{
+  const multi = GAMES.filter((g) => g.meta.levels.length > 1);
+  const single = GAMES.filter((g) => g.meta.levels.length === 1);
+  const source = (g) => readFileSync(join(ROOT, `js/games/${g.meta.id}.js`), 'utf8');
+
+  check('every multi-level game reads the kid\'s level',
+    multi.every((g) => source(g).includes('profile.level')),
+    multi.filter((g) => !source(g).includes('profile.level')).map((g) => g.meta.id).join());
+  check('every multi-level game declares what changes',
+    multi.every((g) => g.meta.scales),
+    multi.filter((g) => !g.meta.scales).map((g) => g.meta.id).join());
+  check('and declares it for each level it appears at',
+    multi.every((g) => g.meta.levels.every((l) => g.meta.scales?.[l])),
+    multi.filter((g) => !g.meta.levels.every((l) => g.meta.scales?.[l]))
+      .map((g) => g.meta.id).join());
+  check('single-level games claim no scaling',
+    single.every((g) => !g.meta.scales),
+    single.filter((g) => g.meta.scales).map((g) => g.meta.id).join());
+  check(`${multi.length} games scale, ${single.length} are fixed to one age`, true);
+}
+
 check('the toddler games are kept away from the 7-year-old',
   !poolFor(3).some((g) => ['animals', 'colors', 'shapes'].includes(g.meta.id)),
   poolFor(3).map((g) => g.meta.id).join());

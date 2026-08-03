@@ -26,6 +26,13 @@
    today's date, so it is stable all day (the shelf doesn't reshuffle
    between games) but different tomorrow. Nobody has to curate it.
 
+   A GAME ON SEVERAL LEVELS MUST ADAPT. If meta.levels has more than one
+   entry the game has to read ctx.profile.level and play differently, and
+   must declare meta.scales — { level: 'what changes' } — which is shown
+   on the settings chips and asserted by npm test. A single-level game
+   declares no scales. This is what stops a game quietly being handed to
+   an age it was never tuned for.
+
    AGE FIT IS EXPLICIT, NOT INFERRED. A game being playable at a level
    isn't the same as being worth that kid's time — אביתר can play
    חברים מהחווה but shouldn't be given it. POOL below is the judgement

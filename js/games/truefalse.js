@@ -15,6 +15,7 @@ export const meta = {
   emoji: '🤔',
   blurb: 'שומעים משפט ומחליטים',
   levels: [2, 3],
+  scales: { 2: 'משפטים על חיות וטבע', 3: 'מדע, גיאוגרפיה ואמונות מוטעות' },
 };
 
 const STATEMENTS = [

@@ -10,6 +10,7 @@ export const meta = {
   emoji: '🔢',
   blurb: 'כמה יש כאן?',
   levels: [1, 2],
+  scales: { 1: 'עד 5, עם ספירה בקול', 2: 'עד 10' },
 };
 
 export function mount(stage, ctx) {

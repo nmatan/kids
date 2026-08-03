@@ -10,6 +10,7 @@ export const meta = {
   emoji: '🧠',
   blurb: 'מצאו את הזוגות',
   levels: [1, 2, 3],
+  scales: { 1: '3 זוגות', 2: '6 זוגות', 3: '8 זוגות' },
 };
 
 const PAIRS_BY_LEVEL = { 1: 3, 2: 6, 3: 8 };

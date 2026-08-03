@@ -15,6 +15,7 @@ export const meta = {
   emoji: '🛒',
   blurb: 'מרכיבים את הסכום ממטבעות ושטרות',
   levels: [2, 3],
+  scales: { 2: 'מטבעות בלבד, עד 2 פריטים', 3: 'גם שטרות, עד 3 פריטים' },
 };
 
 /* Real circulating NIS. `size` is roughly proportional to the real thing,

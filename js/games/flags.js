@@ -15,6 +15,7 @@ export const meta = {
   emoji: '🚩',
   blurb: 'של איזו מדינה הדגל?',
   levels: [2, 3],
+  scales: { 2: '18 מדינות מוכרות', 3: '38 מדינות, וגם למצוא דגל לפי שם' },
 };
 
 export function mount(stage, ctx) {

@@ -353,8 +353,12 @@ function gamesForKidBlock(profile) {
   };
 
   GAMES.forEach((g) => {
+    // Show how the game behaves for THIS kid, so picking is informed:
+    // a game on several levels plays differently on each.
+    const at = g.meta.scales?.[profile.level];
     const chip = el('button', { class: `chip${active.has(g.meta.id) ? ' on' : ''}` },
       `${g.meta.emoji} ${g.meta.title}`,
+      at ? el('i', { class: 'chip-scale', text: at }) : null,
     );
     chip.addEventListener('click', () => {
       if (active.has(g.meta.id)) {

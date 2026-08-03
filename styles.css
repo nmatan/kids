@@ -479,6 +479,16 @@ button {
 
 .chip.on { background: var(--accent); color: #fff; border-color: transparent; }
 
+/* what a game does at this kid's level, under its name in settings */
+.chip-scale {
+  display: block;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 600;
+  opacity: 0.75;
+  margin-top: 2px;
+}
+
 .gate-input {
   font: inherit;
   font-size: 34px;

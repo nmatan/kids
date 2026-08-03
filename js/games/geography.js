@@ -16,6 +16,7 @@ export const meta = {
   emoji: '🌍',
   blurb: 'מוצאים את המדינה על המפה',
   levels: [2, 3],
+  scales: { 2: '3 סימנים על המפה', 3: '5 סימנים, יותר מדינות' },
 };
 
 const SVG = 'http://www.w3.org/2000/svg';
