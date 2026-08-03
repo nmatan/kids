@@ -3,7 +3,7 @@
    Keep game files short by putting anything reusable in here.
    --------------------------------------------------------------- */
 
-import { T, REWARD } from './text.js';
+import { T, REWARD, MEDAL } from './text.js';
 import { get } from './settings.js';
 
 /* ---------- random ---------- */
@@ -248,6 +248,27 @@ export function celebrate(count = 60) {
   setTimeout(() => layer.remove(), 4200);
 }
 
+/**
+ * Throw a handful of themed icons up the screen — capoeira drums, judo
+ * belts, footballs. Used for streaks and for the wheel.
+ */
+export function burst(icons, count = 16) {
+  if (!get('confetti') || !icons?.length) return;
+  const layer = el('div', { class: 'burst' });
+  for (let i = 0; i < count; i++) {
+    layer.append(el('b', {
+      style: {
+        left: `${6 + Math.random() * 88}%`,
+        fontSize: `${26 + Math.random() * 30}px`,
+        animationDuration: `${1.1 + Math.random() * 0.9}s`,
+        animationDelay: `${Math.random() * 0.35}s`,
+      },
+    }, pick(icons)));
+  }
+  document.body.append(layer);
+  setTimeout(() => layer.remove(), 2800);
+}
+
 export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -268,6 +289,11 @@ export function endCard(ctx, { stars, msg, score = '🎉', reward = null }) {
       el('div', { class: `left-line${reward.remaining <= 2 ? ' low' : ''}`,
         text: reward.remaining === 0 ? REWARD.lastOne : REWARD.left(reward.remaining) }),
     ) : null,
+    // A medal outranks everything: send them straight to the wheel.
+    reward?.medal
+      ? el('button', { class: 'btn primary medal-btn', onClick: () => ctx.claimMedal() },
+        MEDAL.claim)
+      : null,
     el('div', { class: 'choices' },
       // No replay button once the day's allowance for this game is gone.
       reward && !reward.canReplay
@@ -305,6 +331,7 @@ export class Round {
     this.forgiving = opts.forgiving ?? false;
     this.index = 0;
     this.score = 0;
+    this.streak = 0;   // consecutive clean answers, for the themed effects
     this.results = [];
     this.dead = false;
   }
@@ -340,6 +367,13 @@ export class Round {
 
       answered = true;
       const credit = won && !missed;
+      if (credit) {
+        this.streak++;
+        // every third in a row earns a themed burst
+        if (this.streak % 3 === 0) this.ctx.onStreak?.(this.streak);
+      } else {
+        this.streak = 0;
+      }
       if (won) {
         if (credit) this.score++;
         sfx.correct();

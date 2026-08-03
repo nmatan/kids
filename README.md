@@ -159,6 +159,52 @@ real backend — and it'd be the first dependency this project has.
 
 ---
 
+## Each kid's own world
+
+[js/themes.js](js/themes.js) — every kid gets a themed space built around what
+they actually like:
+
+| kid | theme | their space |
+|-----|-------|-------------|
+| אביתר | 🤸 קפוארה | הרודה של אביתר — green, drums and berimbau, *אשֶׁה!* |
+| אמיתי | 🥋 ג׳ודו | הדוג׳ו של אמיתי — blue, belts and tatami, *איפון!* |
+| עברי | ⚽ כדורים | המגרש של עברי — orange, every kind of ball, *גול!* |
+
+The theme drives the shelf's colours, a faint icon backdrop, the heading, the
+card styling — and the **streak effect**: every third clean answer in a row
+throws that kid's icons up the screen with a themed shout. Footballs for עברי,
+belts for אמיתי, drums for אביתר. A wrong answer resets the run.
+
+To retheme someone, change `theme` in [js/profiles.js](js/profiles.js) to a key
+from `THEMES`, or add a new entry. Nothing else needs touching.
+
+---
+
+## Medals and the prize wheel
+
+A medal is earned by **finishing every game's daily allowance AND winning at
+least 80% of them**. One per kid per day, and it can't be earned twice. Exactly
+80% counts; one win short doesn't.
+
+Earning one interrupts the usual end-of-game card with 🎖 **מגיעה לך מדליה!**,
+which opens a **prize wheel** — seven segments, a four-second spin, and the
+prize is announced out loud and written to the medal.
+
+The prizes are in `PRIZES` in [js/text.js](js/text.js) — swap in whatever you're
+happy to promise:
+
+> 🥤 שלוק לקינוח · 💆 מסאג׳ מאמא · 🎵 לבחור שיר לפני השינה · 🤗 חיבוק מפה-פה הגדול ·
+> 🥄 כפית קטשופ · 🛏️ לנוח במיטה של אמא · 🎥 לצלם סרטון לסבתא
+
+The wheel redraws itself for however many prizes are in the list.
+
+🎖 **מדליות** on the home screen is the fridge door: every medal each kid has
+won, with its date and the prize that came with it, so there's a record of
+what's been promised. A medal spun but not yet claimed shows as 🎁 on their
+profile card and as a banner on their shelf, so an interrupted spin isn't lost.
+
+---
+
 ## Settings
 
 Home screen → **⚙** (top corner), behind a parent gate: a two-digit

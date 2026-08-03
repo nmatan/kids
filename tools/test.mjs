@@ -432,6 +432,122 @@ for (const [level, slots, notesExpected] of [[2, 2, false], [3, 3, true]]) {
   }
 }
 
+/* ---------- 3g. themes and streaks ---------- */
+
+console.log('\nThemes\n');
+
+const { themeFor, THEMES } = await load('js/themes.js');
+
+check('every kid has a theme that resolves',
+  PROFILES.every((p) => p.theme && THEMES[p.theme]),
+  PROFILES.map((p) => `${p.name}=${p.theme}`).join(' '));
+check('every theme is complete',
+  Object.values(THEMES).every((t) =>
+    t.badge && t.icons?.length && t.colors?.length === 2 && t.cheers?.length && t.space),
+  'a theme is missing fields');
+check('each kid has their own theme',
+  new Set(PROFILES.map((p) => p.theme)).size === PROFILES.length);
+
+await navigate(`#/p/${kidA.id}`);
+check('the shelf is themed', find('themed').length > 0 && find('backdrop').length === 1);
+check('the shelf is named after the theme',
+  appRoot.textContent.includes(themeFor(kidA).space(kidA.name)), appRoot.textContent.slice(0, 90));
+
+// streaks fire every third clean answer, and reset on a mistake
+const { Round } = await load('js/kit.js');
+
+const runStreak = (answers) => new Promise((resolve) => {
+  const stage = new Node('div');
+  const streaks = [];
+  const round = new Round(stage, {
+    profile: kidA,
+    setProgress() {}, exit() {}, replay() {},
+    onStreak: (n) => streaks.push(n),
+    finish: () => setTimeout(() => resolve(streaks), 0),
+  }, { rounds: answers.length, pauseOk: 1, pauseNo: 1 });
+  let i = 0;
+  round.start((view, api) => { (answers[i++] ? api.ok : api.no)(); });
+});
+
+check('a clean run bursts every third answer',
+  (await runStreak([1, 1, 1, 1, 1, 1, 1, 1, 1])).join() === '3,6,9',
+  (await runStreak([1, 1, 1, 1, 1, 1, 1, 1, 1])).join());
+check('a mistake resets the streak',
+  (await runStreak([1, 1, 0, 1, 1, 1, 1])).join() === '3',
+  (await runStreak([1, 1, 0, 1, 1, 1, 1])).join());
+
+/* ---------- 3h. medals and the prize wheel ---------- */
+
+console.log('\nMedals\n');
+
+const { PRIZES, MEDAL } = await load('js/text.js');
+const shelfA = gamesForProfile(kidA).map((g) => g.meta.id);
+const perGame = store.dailyLimit();
+
+/** A full day for kidA: every game's allowance used, `zeros` of them lost. */
+const fullDay = (zeros = 0) => {
+  const entries = [];
+  shelfA.forEach((id) => {
+    for (let i = 0; i < perGame; i++) entries.push(play(Date.now(), kidA, 3, id));
+  });
+  for (let i = 0; i < zeros; i++) entries[i].s = 0;
+  return entries;
+};
+
+const totalPlays = shelfA.length * perGame;
+
+seed(fullDay(0));
+check('a perfect finished day earns a medal', store.awardMedal(kidA.id, shelfA) !== null);
+
+seed(fullDay(0));
+store.awardMedal(kidA.id, shelfA);
+check('the same day cannot earn two medals', store.awardMedal(kidA.id, shelfA) === null);
+
+// exactly on the 80% line, and one win short of it
+const needed = Math.ceil(totalPlays * store.MEDAL_RATE);
+seed(fullDay(totalPlays - needed));
+check(`exactly ${needed}/${totalPlays} wins (the 80% line) earns it`,
+  store.awardMedal(kidA.id, shelfA) !== null);
+
+seed(fullDay(totalPlays - needed + 1));
+check(`${needed - 1}/${totalPlays} — one win short — earns nothing`,
+  store.awardMedal(kidA.id, shelfA) === null);
+
+// an unfinished day earns nothing however good it was
+seed(fullDay(0).slice(0, totalPlays - 1));
+check('an unfinished day earns nothing', store.awardMedal(kidA.id, shelfA) === null);
+
+seed([]);
+check('a day with no games earns nothing', store.awardMedal(kidA.id, shelfA) === null);
+check('a kid with no shelf earns nothing', store.awardMedal(kidA.id, []) === null);
+
+// the wheel
+seed(fullDay(0));
+const earned = store.awardMedal(kidA.id, shelfA);
+check('a fresh medal has no prize yet', earned.prize === null);
+check('it shows up as pending', store.pendingMedal(kidA.id)?.day === earned.day);
+
+await navigate(`#/p/${kidA.id}`);
+check('the shelf offers the waiting gift', find('gift-banner').length === 1);
+
+await navigate(`#/p/${kidA.id}/wheel`);
+check('the wheel screen draws', find('wheel').length === 1);
+check(`the wheel has all ${PRIZES.length} prizes`, find('wseg').length === PRIZES.length,
+  `got ${find('wseg').length}`);
+
+find('btn').find((b) => b.textContent.includes(MEDAL.spin))?.dispatch('click');
+await sleep(4700);
+const spun = store.medalsFor(kidA.id)[0];
+check('spinning lands on a real prize',
+  PRIZES.some((p) => p.text === spun.prize), `got "${spun.prize}"`);
+check('the prize is shown on screen', find('prize-text').length === 1);
+check('a spent medal is no longer pending', store.pendingMedal(kidA.id) === null);
+
+await navigate('#/medals');
+check('the medal shelf lists it', find('medal').length >= 1);
+check('the medal shelf shows the prize for parents',
+  appRoot.textContent.includes(spun.prize), 'prize missing');
+
 /* ---------- 4. read-along highlighting ---------- */
 
 console.log('\nRead-along\n');

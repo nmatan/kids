@@ -15,12 +15,15 @@ import { GAMES, gamesForProfile, gamesForLevel, getGame } from './registry.js';
 import {
   bestStars, recordPlay, totalStars, pointsIn, leaderboard, PERIODS,
   remainingToday, remainingAcross, dailyLimit, resetAll,
+  awardMedal, pendingMedal, setMedalPrize, medalsFor, medalCount, todayStats,
 } from './store.js';
 import {
-  el, clear, speak, stopSpeech, sfx, setSpeechLang, hasVoice, randInt,
+  el, clear, speak, stopSpeech, sfx, setSpeechLang, hasVoice, randInt, pick,
+  burst, celebrate,
 } from './kit.js';
 import * as settings from './settings.js';
-import { T, SET, LANG, REWARD, cheerLine } from './text.js';
+import { T, SET, LANG, REWARD, MEDAL, PRIZES, cheerLine } from './text.js';
+import { themeFor } from './themes.js';
 
 setSpeechLang(LANG);
 
@@ -32,12 +35,41 @@ let unlocked = false;     // parent gate, deliberately not persisted
 const go = (hash) => { location.hash = hash; };
 const starRow = (n) => '★'.repeat(n) + '☆'.repeat(3 - n);
 
+/** Theme colours + glow, applied to a screen root. */
+const themeVars = (theme) => ({
+  '--c1': theme.colors[0],
+  '--c2': theme.colors[1],
+  '--glow': theme.glow,
+});
+
+/** Faint themed icons scattered behind a kid's space. Decorative only. */
+function backdrop(theme) {
+  const layer = el('div', { class: 'backdrop', 'aria-hidden': 'true' });
+  for (let i = 0; i < 14; i++) {
+    layer.append(el('span', {
+      style: {
+        left: `${Math.random() * 96}%`,
+        top: `${Math.random() * 96}%`,
+        fontSize: `${34 + Math.random() * 46}px`,
+        transform: `rotate(${-30 + Math.random() * 60}deg)`,
+      },
+    }, pick(theme.icons)));
+  }
+  return layer;
+}
+
 function parse() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
   if (parts[0] === 'leaders') return { screen: 'leaders' };
   if (parts[0] === 'settings') return { screen: 'settings' };
+  if (parts[0] === 'medals') return { screen: 'medals' };
   if (parts[0] === 'p' && parts[1]) {
-    return { screen: 'profile', profileId: parts[1], gameId: parts[2] === 'g' ? parts[3] : null };
+    return {
+      screen: 'profile',
+      profileId: parts[1],
+      gameId: parts[2] === 'g' ? parts[3] : null,
+      wheel: parts[2] === 'wheel',
+    };
   }
   return { screen: 'home' };
 }
@@ -56,29 +88,38 @@ function homeScreen() {
         onClick: () => { sfx.tap(); go('/leaders'); },
       }, '🏆 ', T.leaderboard),
       el('button', {
+        class: 'btn',
+        onClick: () => { sfx.tap(); go('/medals'); },
+      }, '🎖 ', MEDAL.title),
+      el('button', {
         class: 'btn round subtle',
         'aria-label': SET.title,
         onClick: () => { sfx.tap(); go('/settings'); },
       }, '⚙'),
     ),
     el('div', { class: 'profiles' },
-      PROFILES.map((p) =>
-        el('button', {
+      PROFILES.map((p) => {
+        const theme = themeFor(p);
+        const gift = pendingMedal(p.id);
+        return el('button', {
           class: 'profile',
-          style: { '--c1': p.colors[0], '--c2': p.colors[1] },
+          style: themeVars(theme),
           onClick: () => { sfx.tap(); speak(p.name); go(`/p/${p.id}`); },
         },
+          el('div', { class: 'theme-badge', text: theme.badge }),
+          gift ? el('div', { class: 'gift-dot', text: '🎁' }) : null,
           el('div', { class: 'face', text: p.face }),
           el('div', { class: 'name', text: p.name }),
+          el('div', { class: 'theme-name', text: theme.space(p.name) }),
           el('div', { class: 'meta' },
-            `⭐ ${totalStars(p.id)}`,
+            `🎖 ${medalCount(p.id)}`,
             el('span', { class: 'sep' }, '·'),
             `🏅 ${pointsIn(p.id, 'week')} ${T.pointsShort}`,
             el('span', { class: 'sep' }, '·'),
             `🎮 ${remainingAcross(p.id, gamesForProfile(p).map((g) => g.meta.id))}`,
           ),
-        ),
-      ),
+        );
+      }),
     ),
     hasVoice(LANG) ? null : el('p', { class: 'warn', text: T.ttsMissing }),
   );
@@ -333,16 +374,29 @@ function settingsScreen() {
 
 function shelfScreen(profile) {
   const games = gamesForProfile(profile);
+  const theme = themeFor(profile);
   const total = remainingAcross(profile.id, games.map((g) => g.meta.id));
   const allUsedUp = games.length > 0 && total === 0;
+  const gift = pendingMedal(profile.id);
+  const { wins, plays } = todayStats(profile.id);
 
-  return el('div', { class: 'screen' },
+  return el('div', { class: 'screen themed', style: themeVars(theme) },
+    backdrop(theme),
     el('div', { class: 'topbar' },
       el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
-      el('div', { class: 'grow' }, el('h2', {}, `${profile.face} ${profile.name}`)),
+      el('div', { class: 'grow' },
+        el('h2', {}, `${theme.badge} ${theme.space(profile.name)}`),
+        plays ? el('div', { class: 'set-hint', text: MEDAL.why(wins, plays) }) : null,
+      ),
       el('div', { class: 'pill' }, `🏅 ${pointsIn(profile.id, 'week')} ${T.pointsShort}`),
       el('div', { class: `pill${total <= 3 ? ' low' : ''}` }, `🎮 ${total}`),
     ),
+    gift
+      ? el('button', {
+        class: 'btn primary gift-banner',
+        onClick: () => { sfx.tap(); go(`/p/${profile.id}/wheel`); },
+      }, MEDAL.pending)
+      : null,
     allUsedUp ? el('p', { class: 'warn center', text: REWARD.lockedHint(dailyLimit()) }) : null,
     el('div', { class: 'game-grid' },
       games.map((g) => {
@@ -372,8 +426,9 @@ function shelfScreen(profile) {
 function playScreen(profile, game) {
   const dots = el('div', { class: 'progress' });
   const stage = el('div', { class: 'stage' });
+  const theme = themeFor(profile);
 
-  const screen = el('div', { class: 'screen' },
+  const screen = el('div', { class: 'screen themed', style: themeVars(theme) },
     el('div', { class: 'topbar' },
       el('button', {
         class: 'btn round',
@@ -405,15 +460,28 @@ function playScreen(profile, game) {
       const remaining = remainingToday(profile.id, game.meta.id);
       const rows = leaderboard(PROFILES, 'week');
       const rank = rows.findIndex((r) => r.profile.id === profile.id);
+      // Checked after recording: a medal can only ever be the last play.
+      const medal = awardMedal(profile.id, gamesForProfile(profile).map((g) => g.meta.id));
 
       return {
         points,
         remaining,
         rank,
+        medal,
         canReplay: remaining > 0,
-        speech: cheerLine({ profile, stars, points, remaining, rows }),
+        speech: medal
+          ? `${MEDAL.earned} ${MEDAL.why(medal.wins, medal.plays)}. יש לך מתנה!`
+          : cheerLine({ profile, stars, points, remaining, rows }),
       };
     },
+
+    /** A streak of clean answers — throw their own theme across the screen. */
+    onStreak(streak) {
+      burst(theme.icons, 10 + streak * 2);
+      speak(pick(theme.cheers), { rate: 1 });
+    },
+
+    claimMedal() { go(`/p/${profile.id}/wheel`); },
     exit() { go(`/p/${profile.id}`); },
     replay() {
       // Belt and braces: the card hides the replay button when the day's
@@ -431,6 +499,121 @@ function playScreen(profile, game) {
   return screen;
 }
 
+/* ---------- the prize wheel ---------- */
+
+const SEG = 360 / PRIZES.length;
+
+function wheelScreen(profile) {
+  const medal = pendingMedal(profile.id);
+  if (!medal) return medalsScreen(); // nothing to spin — don't let them farm it
+
+  const theme = themeFor(profile);
+  const colors = ['#ff6b6b', '#ffd23f', '#37d67a', '#4cc9f0', '#7c5cff', '#f72585', '#ff9f1c'];
+
+  const wheel = el('div', {
+    class: 'wheel',
+    style: {
+      background: `conic-gradient(${PRIZES
+        .map((_, i) => `${colors[i % colors.length]} ${i * SEG}deg ${(i + 1) * SEG}deg`)
+        .join(',')})`,
+    },
+  },
+    PRIZES.map((p, i) => {
+      const angle = (i + 0.5) * SEG;
+      return el('span', { class: 'wseg', style: { transform: `rotate(${angle}deg)` } },
+        el('i', { class: 'wico', style: { transform: `rotate(${-angle}deg)` } }, p.emoji));
+    }),
+  );
+
+  const result = el('div', { class: 'prize' });
+  const spinBtn = el('button', { class: 'btn primary big-btn' }, MEDAL.spin);
+
+  spinBtn.addEventListener('click', () => {
+    if (spinBtn.disabled) return;
+    spinBtn.disabled = true;
+    spinBtn.textContent = MEDAL.spinning;
+    sfx.tap();
+
+    const i = randInt(0, PRIZES.length - 1);
+    // Segment i is centred at (i+0.5)*SEG clockwise from the top pointer,
+    // so spinning by -that (plus whole turns) parks it under the pointer.
+    wheel.style.transition = 'transform 4.2s cubic-bezier(0.15, 0.7, 0.15, 1)';
+    wheel.style.transform = `rotate(${360 * 5 - (i + 0.5) * SEG}deg)`;
+
+    setTimeout(() => {
+      const prize = PRIZES[i];
+      setMedalPrize(profile.id, medal.day, prize.text);
+      clear(result);
+      result.append(
+        el('div', { class: 'prize-emoji', text: prize.emoji }),
+        el('div', { class: 'prize-text', text: prize.text }),
+      );
+      celebrate(120);
+      burst(theme.icons, 24);
+      sfx.win();
+      speak(`${MEDAL.won}${prize.text}`, { rate: 0.9 });
+      spinBtn.remove();
+    }, 4400);
+  });
+
+  return el('div', { class: 'screen themed wheel-screen', style: themeVars(theme) },
+    backdrop(theme),
+    el('div', { class: 'topbar' },
+      el('button', {
+        class: 'btn round', 'aria-label': 'חזרה', onClick: () => go(`/p/${profile.id}`),
+      }, T.back),
+      el('div', { class: 'grow' }, el('h2', {}, `🎖 ${MEDAL.earned}`)),
+    ),
+    el('div', { class: 'stage' },
+      el('p', { class: 'subtitle', text: MEDAL.why(medal.wins, medal.plays) }),
+      el('div', { class: 'wheel-wrap' },
+        el('div', { class: 'wheel-pin' }, '▼'),
+        wheel,
+      ),
+      result,
+      spinBtn,
+      el('button', {
+        class: 'btn', onClick: () => go('/medals'),
+      }, MEDAL.showParents),
+    ),
+  );
+}
+
+/* ---------- the medal shelf ---------- */
+
+function medalsScreen() {
+  return el('div', { class: 'screen' },
+    el('div', { class: 'topbar' },
+      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
+      el('div', { class: 'grow' }, el('h2', {}, `🎖 ${MEDAL.title}`)),
+    ),
+    el('p', { class: 'set-hint pad', text: MEDAL.rule }),
+    PROFILES.map((p) => {
+      const theme = themeFor(p);
+      const medals = medalsFor(p.id);
+      return el('div', { class: 'medal-block', style: themeVars(theme) },
+        el('div', { class: 'kid-head' },
+          el('span', { class: 'face', text: p.face }),
+          el('span', { class: 'name', text: p.name }),
+          el('div', { class: 'grow' }),
+          el('span', { class: 'pill' }, `🎖 ${MEDAL.count(medals.length)}`),
+        ),
+        medals.length
+          ? el('div', { class: 'medal-list' },
+            medals.slice(0, 12).map((m) =>
+              el('div', { class: 'medal' },
+                el('div', { class: 'medal-face', text: '🎖' }),
+                el('div', { class: 'medal-day', text: m.day }),
+                el('div', { class: 'medal-prize', text: m.prize || '🎁' }),
+              ),
+            ),
+          )
+          : el('p', { class: 'set-hint', text: MEDAL.none }),
+      );
+    }),
+  );
+}
+
 /* ---------- render ---------- */
 
 function render() {
@@ -442,9 +625,11 @@ function render() {
   const route = parse();
   if (route.screen === 'leaders') return app.append(leadersScreen());
   if (route.screen === 'settings') return app.append(settingsScreen());
+  if (route.screen === 'medals') return app.append(medalsScreen());
 
   const profile = route.profileId ? getProfile(route.profileId) : null;
   if (!profile) return app.append(homeScreen());
+  if (route.wheel) return app.append(wheelScreen(profile));
 
   // Out of games for today, or a game that isn't on this kid's shelf?
   // Fall back to the shelf rather than starting something that can't count.

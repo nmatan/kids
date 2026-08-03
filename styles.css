@@ -177,6 +177,171 @@ button {
   line-height: 1.5;
 }
 
+/* ---------- themed spaces ---------- */
+
+.screen.themed { position: relative; }
+
+/* faint themed icons behind everything; never interactive */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  opacity: 0.07;
+}
+
+.backdrop span { position: absolute; line-height: 1; }
+
+.screen.themed > *:not(.backdrop) { position: relative; z-index: 1; }
+
+.screen.themed .game-card {
+  border-color: color-mix(in srgb, var(--c1) 55%, transparent);
+  background: linear-gradient(165deg,
+    color-mix(in srgb, var(--c1) 22%, transparent),
+    color-mix(in srgb, var(--c2) 26%, transparent));
+}
+
+.screen.themed .game-card:active { background: color-mix(in srgb, var(--c1) 40%, transparent); }
+.screen.themed .btn.primary { background: var(--c1); }
+.screen.themed h2 { text-shadow: 0 0 26px color-mix(in srgb, var(--glow) 45%, transparent); }
+
+.profile .theme-badge {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 14px;
+  font-size: 26px;
+  opacity: 0.85;
+}
+
+.profile .gift-dot {
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 14px;
+  font-size: 28px;
+  animation: nudge 1.4s ease-in-out infinite;
+}
+
+@keyframes nudge {
+  0%, 100% { transform: scale(1) rotate(-6deg); }
+  50% { transform: scale(1.16) rotate(6deg); }
+}
+
+.profile { position: relative; }
+.profile .theme-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* streak effect: themed icons flying up the screen */
+.burst {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 60;
+}
+
+.burst b {
+  position: absolute;
+  bottom: -12vh;
+  line-height: 1;
+  animation: rise ease-out forwards;
+}
+
+@keyframes rise {
+  0% { transform: translateY(0) rotate(0); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translateY(-118vh) rotate(340deg); opacity: 0; }
+}
+
+/* ---------- medals + the prize wheel ---------- */
+
+.gift-banner {
+  width: 100%;
+  justify-content: center;
+  font-size: 22px;
+  animation: nudge 1.6s ease-in-out infinite;
+}
+
+.medal-btn {
+  align-self: center;
+  font-size: 21px;
+  background: var(--gold);
+  color: #2a1d05;
+  box-shadow: 0 8px 0 rgba(0, 0, 0, 0.3);
+  animation: reward-in 500ms 200ms cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+
+.big-btn { font-size: 24px; min-height: 72px; }
+
+.wheel-screen .stage { gap: 18px; }
+
+.wheel-wrap { position: relative; display: grid; place-items: center; }
+
+.wheel-pin {
+  position: absolute;
+  top: -14px;
+  z-index: 2;
+  font-size: 34px;
+  color: var(--gold);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.wheel {
+  position: relative;
+  width: min(74vw, 46vh, 380px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 8px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 10px 0 rgba(0, 0, 0, 0.35), inset 0 0 40px rgba(0, 0, 0, 0.25);
+}
+
+.wseg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  padding-top: 7%;
+}
+
+.wico { font-size: clamp(24px, 6vw, 38px); line-height: 1; font-style: normal; }
+
+.prize { min-height: 70px; display: grid; place-items: center; gap: 6px; }
+.prize-emoji { font-size: clamp(48px, 12vw, 84px); animation: earned-pop 800ms both; }
+
+.prize-text {
+  font-size: clamp(24px, 5vw, 38px);
+  color: var(--gold);
+  animation: fade-in 400ms 260ms both;
+}
+
+.medal-block {
+  padding: 16px 18px;
+  border-radius: 22px;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--c1) 20%, transparent),
+    color-mix(in srgb, var(--c2) 24%, transparent));
+  border: 2px solid color-mix(in srgb, var(--c1) 45%, transparent);
+  margin-bottom: 12px;
+}
+
+.medal-list { display: flex; flex-wrap: wrap; gap: 10px; }
+
+.medal {
+  min-width: 120px;
+  flex: 1 1 120px;
+  padding: 12px 10px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.26);
+  text-align: center;
+}
+
+.medal-face { font-size: 34px; line-height: 1; }
+.medal-day { font-size: 13px; font-weight: 600; color: var(--ink-dim); margin-top: 4px; }
+.medal-prize { font-size: 14px; color: var(--gold); margin-top: 4px; line-height: 1.35; }
+
 /* ---------- settings ---------- */
 
 .btn.subtle { background: transparent; border-color: rgba(255, 255, 255, 0.18); }

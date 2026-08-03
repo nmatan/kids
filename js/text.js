@@ -49,6 +49,38 @@ export const T = {
 /** Masculine / feminine picker, driven by the profile's `gender`. */
 const g = (p, mas, fem) => (p?.gender === 'f' ? fem : mas);
 
+/* ---------------------------------------------------------------
+   Medals and the prize wheel.
+   ✏️ PRIZES is just a list — swap in whatever you're happy to promise.
+   The wheel redraws itself for however many there are.
+   --------------------------------------------------------------- */
+
+export const PRIZES = [
+  { emoji: '🥤', text: 'שלוק לקינוח' },
+  { emoji: '💆', text: 'מסאג׳ מאמא' },
+  { emoji: '🎵', text: 'לבחור שיר לפני השינה' },
+  { emoji: '🤗', text: 'חיבוק מפה-פה הגדול' },
+  { emoji: '🥄', text: 'כפית קטשופ' },
+  { emoji: '🛏️', text: 'לנוח במיטה של אמא' },
+  { emoji: '🎥', text: 'לצלם סרטון לסבתא' },
+];
+
+export const MEDAL = {
+  title: 'מדליות',
+  earned: 'מדליית היום! 🎖',
+  why: (wins, plays) => `${wins} ניצחונות מתוך ${plays} משחקים היום`,
+  claim: '🎖 מגיעה לך מדליה! לפתוח מתנה',
+  pending: '🎁 יש לך מתנה שמחכה!',
+  spin: 'לסובב את הגלגל!',
+  spinning: 'מסתובב...',
+  won: 'זכית ב',
+  yourPrize: 'המתנה שלך',
+  showParents: 'להראות לאבא ואמא 📸',
+  none: 'עוד אין מדליות. מסיימים את כל המשחקים של היום ומנצחים ב-80% מהם!',
+  count: (n) => (n === 0 ? 'אין עדיין' : n === 1 ? 'מדליה אחת' : `${n} מדליות`),
+  rule: 'איך מקבלים מדליה: לסיים את כל המשחקים של היום, ולנצח לפחות ב-80% מהם.',
+};
+
 export const SET = {
   title: 'הגדרות',
   gate: 'רק להורים',

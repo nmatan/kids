@@ -3,6 +3,9 @@
 
    Bump `level` on a birthday and that kid's game shelf changes.
 
+   `theme` points at an entry in js/themes.js — that's what personalises
+   their shelf, the streak effects and the cheers.
+
    `gender` ('m' / 'f') only drives Hebrew verb forms in the spoken
    encouragement ("אתה מוביל" / "את מובילה"). Change it and the wording
    follows — nothing else depends on it.
@@ -20,7 +23,8 @@ export const PROFILES = [
     age: 7,
     gender: 'm',
     level: 3,
-    colors: ['#7c5cff', '#4130a8'],
+    theme: 'capoeira',
+    colors: ['#2fa84f', '#0f5c2b'],
   },
   {
     id: 'amitai',
@@ -29,7 +33,8 @@ export const PROFILES = [
     age: 5,
     gender: 'm',
     level: 2,
-    colors: ['#00b4d8', '#0353a4'],
+    theme: 'judo',
+    colors: ['#3f7ee0', '#123a7a'],
   },
   {
     id: 'ivri',
@@ -38,7 +43,8 @@ export const PROFILES = [
     age: 2,
     gender: 'm',
     level: 1,
-    colors: ['#ff9f1c', '#e05c02'],
+    theme: 'balls',
+    colors: ['#ff9f1c', '#d24e00'],
   },
 ];
 

@@ -41,9 +41,11 @@ export const dailyLimit = () => get('dailyLimit');
 function read() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY));
-    if (raw && typeof raw === 'object') return { best: raw.best || {}, log: raw.log || [] };
+    if (raw && typeof raw === 'object') {
+      return { best: raw.best || {}, log: raw.log || [], medals: raw.medals || [] };
+    }
   } catch { /* corrupt or unreadable — start fresh */ }
-  return { best: {}, log: [] };
+  return { best: {}, log: [], medals: [] };
 }
 
 function write(data) {
@@ -156,5 +158,70 @@ export function totalStars(profileId) {
 }
 
 export function resetAll() {
-  write({ best: {}, log: [] });
+  write({ best: {}, log: [], medals: [] });
+}
+
+/* ---------------------------------------------------------------
+   Medals — one per kid per day, earned by using up every game's
+   daily allowance AND winning at least 80% of them. Deliberately hard
+   to get by accident, and impossible to get twice in a day.
+
+   Each medal carries the prize spun on the wheel, so the fridge-door
+   list tells you what was promised as well as what was earned.
+   --------------------------------------------------------------- */
+
+export const MEDAL_RATE = 0.8;
+
+const dayKey = (now = new Date()) => {
+  const d = new Date(now);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+/** Today's games and how many were won — the medal test. */
+export function todayStats(profileId, now = new Date()) {
+  const since = startOfDay(now);
+  const rows = read().log.filter((e) => e.p === profileId && e.at >= since);
+  const wins = rows.filter((e) => e.s >= 1).length;
+  return { plays: rows.length, wins, rate: rows.length ? wins / rows.length : 0 };
+}
+
+/**
+ * Award today's medal if it's been earned. Returns the medal, or null if
+ * the day isn't finished, the rate is short, or one was already awarded.
+ */
+export function awardMedal(profileId, gameIds, now = new Date()) {
+  if (!gameIds.length) return null;
+  if (remainingAcross(profileId, gameIds, now) > 0) return null; // day not done
+
+  const { plays, wins, rate } = todayStats(profileId, now);
+  if (plays === 0 || rate < MEDAL_RATE) return null;
+
+  const day = dayKey(now);
+  const data = read();
+  if (data.medals.some((m) => m.p === profileId && m.day === day)) return null;
+
+  const medal = { p: profileId, day, plays, wins, prize: null };
+  data.medals.push(medal);
+  write(data);
+  return medal;
+}
+
+/** Newest first. */
+export const medalsFor = (profileId) =>
+  read().medals.filter((m) => m.p === profileId).reverse();
+
+export const medalCount = (profileId) =>
+  read().medals.filter((m) => m.p === profileId).length;
+
+/** A medal that hasn't had its wheel spun yet. */
+export const pendingMedal = (profileId) =>
+  read().medals.find((m) => m.p === profileId && !m.prize) || null;
+
+export function setMedalPrize(profileId, day, prize) {
+  const data = read();
+  const medal = data.medals.find((m) => m.p === profileId && m.day === day);
+  if (!medal) return;
+  medal.prize = prize;
+  write(data);
 }
