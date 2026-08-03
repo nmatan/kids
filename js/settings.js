@@ -17,9 +17,10 @@ export const DEFAULTS = {
       each is 15 games a day — enough to matter, few enough to finish. */
   dailyLimit: 3,
 
-  /** Points for winning a game. Every win is worth the same, so the
-      kids can count the scoreboard themselves. */
-  pointsPerWin: 1,
+  /** Points earned per star. Games are graded 0-3 stars, so a game is
+      worth 0-3 points and playing carelessly scores less than playing
+      well. See the SCORING note in store.js for why this isn't flat. */
+  pointsPerStar: 1,
 
   /** Questions per game. 0 = whatever each game asks for by default. */
   rounds: 0,

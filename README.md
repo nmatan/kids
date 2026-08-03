@@ -110,23 +110,38 @@ the total still available across the whole shelf. The route is guarded too, so a
 bookmark can't get around it. Resets at local midnight, and the number is
 configurable in settings.
 
-**Every kid has exactly five games, always** ([`GAMES_PER_KID`](js/registry.js)).
+**Every kid has exactly five games a day, always** ([`GAMES_PER_KID`](js/registry.js)).
 Equal shelves mean equal daily ceilings — 15 games each — which is what makes the
-scoreboard a fair contest. Each level's default list is already five, and
-`gamesForProfile()` enforces it whatever settings say: too many gets trimmed, too
-few gets padded with the games closest to that kid's level, so a half-finished
-settings change can never leave someone short.
+scoreboard a fair contest. `gamesForProfile()` enforces it whatever the settings
+say: too many is trimmed, too few is padded.
+
+**The five rotate daily.** Each level has a *pool* of age-appropriate games
+(`POOL` in [js/registry.js](js/registry.js)) and the day's five are drawn from it
+with a seed of kid + date. That means the shelf is stable all day — it doesn't
+reshuffle between games — but different tomorrow, so there's something fresh
+without anyone curating it. Over a fortnight the whole pool gets used.
 
 ### Points
 
-**One point per game won**, whatever the game and whatever the level. A win is
-one star or better; finishing with none counts against the daily allowance but
-scores nothing. Flat scoring is the point — the kids can count the board
-themselves and see who's ahead without anyone explaining it.
+**Points are the star rating.** Each game is graded 0-3 stars from the share of
+questions answered right (≥90% = 3, ≥70% = 2, ≥40% = 1), and that's what's
+banked. Three stars is worth three points.
 
-Points are recomputed from the stored star rating every time the board is drawn
-rather than read back from the log, so changing **נקודות לכל ניצחון** in settings
-rescales past games too and the board never mixes two scoring systems.
+This replaced a flat one-point-per-win rule, which was gameable: a kid could
+rush, scrape a single star, still bank the point, and burn through the day's
+allowance faster than a sibling playing properly. Now carelessness costs you
+directly — one careful game beats three rushed ones.
+
+Still small whole numbers, which was the reason for flat scoring in the first
+place; the kids can add up the board themselves.
+
+Points are recomputed from stored stars every time the board is drawn rather
+than trusted from the log, so changing **נקודות לכל כוכב** in settings rescales
+past games too and the board never mixes two scoring systems.
+
+A **medal** needs 2 stars or better (`WIN_STARS` in [js/store.js](js/store.js)) —
+one star is a pass, not a success, and letting it count would make the medal
+reachable by scraping.
 
 ### Where any of this is stored
 

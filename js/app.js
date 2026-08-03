@@ -12,7 +12,7 @@
 
 import { PROFILES, getProfile } from './profiles.js';
 import {
-  GAMES, GAMES_PER_KID, gamesForProfile, defaultShelf, getGame,
+  GAMES, GAMES_PER_KID, gamesForProfile, poolFor, getGame,
 } from './registry.js';
 import {
   bestStars, recordPlay, totalStars, pointsIn, leaderboard, PERIODS,
@@ -341,14 +341,15 @@ function dangerButton(label, onConfirm) {
 
 function gamesForKidBlock(profile) {
   const chosen = settings.enabledGames(profile.id);
-  const active = new Set(chosen ?? defaultShelf(profile.level).map((g) => g.meta.id));
+  const active = new Set(chosen ?? poolFor(profile.level).map((g) => g.meta.id));
 
   const counter = el('span', { class: 'chip-count' });
   const chips = el('div', { class: 'chips' });
 
   const paint = () => {
-    counter.textContent = SET.chosenCount(active.size, GAMES_PER_KID);
-    counter.classList.toggle('bad', active.size !== GAMES_PER_KID);
+    counter.textContent = SET.poolCount(active.size, GAMES_PER_KID);
+    // Below five there aren't enough to draw a shelf from, so it pads.
+    counter.classList.toggle('bad', active.size < GAMES_PER_KID);
   };
 
   GAMES.forEach((g) => {
@@ -357,13 +358,9 @@ function gamesForKidBlock(profile) {
     );
     chip.addEventListener('click', () => {
       if (active.has(g.meta.id)) {
+        // Dropping below five is allowed but pointless — the shelf pads
+        // itself back up, so the warning colour is the whole feedback.
         active.delete(g.meta.id);
-      } else if (active.size >= GAMES_PER_KID) {
-        // Shelves stay equal, so a swap has to be a swap.
-        sfx.wrong();
-        chip.classList.add('shake');
-        setTimeout(() => chip.classList.remove('shake'), 360);
-        return;
       } else {
         active.add(g.meta.id);
       }
@@ -403,7 +400,7 @@ function settingsScreen() {
 
     el('h3', { class: 'set-section', text: SET.playSection }),
     row(SET.dailyLimit, SET.dailyLimitHint, stepper('dailyLimit', { min: 1, max: 50 })),
-    row(SET.pointsPerWin, SET.pointsPerWinHint, stepper('pointsPerWin', { min: 1, max: 100 })),
+    row(SET.pointsPerStar, SET.pointsPerStarHint, stepper('pointsPerStar', { min: 1, max: 20 })),
     row(SET.rounds, SET.roundsHint, segment('rounds', [
       { label: SET.roundsAuto, value: 0 },
       { label: '5', value: 5 },

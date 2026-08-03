@@ -33,7 +33,7 @@ makeDom();
 const settingsForSpeed = await load('js/settings.js');
 settingsForSpeed.set('rounds', 3);
 
-const { GAMES, gamesForLevel, defaultShelf } = await load('js/registry.js');
+const { GAMES, gamesForLevel, poolFor } = await load('js/registry.js');
 const { PROFILES } = await load('js/profiles.js');
 
 /* ---------- 1. play every game ---------- */
@@ -141,7 +141,7 @@ check('home shows every kid by name', PROFILES.every((p) => appRoot.textContent.
 
 for (const p of PROFILES) {
   await navigate(`#/p/${p.id}`);
-  const expected = defaultShelf(p.level);
+  const expected = (await load('js/registry.js')).gamesForProfile(p);
   check(`${p.name} (level ${p.level}) sees ${expected.length} games`,
     find('game-card').length === expected.length, `got ${find('game-card').length}`);
 
@@ -177,18 +177,15 @@ const [kidA, kidB, kidC] = PROFILES;
 const now = new Date();
 
 cfg.resetSettings();
-check('defaults: 1 point per win', cfg.get('pointsPerWin') === 1, `got ${cfg.get('pointsPerWin')}`);
+check('defaults: 1 point per star', cfg.get('pointsPerStar') === 1, `got ${cfg.get('pointsPerStar')}`);
 check('defaults: 3 plays of each game per day', cfg.get('dailyLimit') === 3,
   `got ${cfg.get('dailyLimit')}`);
 
-cfg.set('pointsPerWin', 7);
-check('changing points per win takes effect', store.pointsFor(3) === 7, `got ${store.pointsFor(3)}`);
+cfg.set('pointsPerStar', 7);
+check('changing the per-star value takes effect', store.pointsFor(3) === 21,
+  `got ${store.pointsFor(3)}`);
 cfg.resetSettings();
-check('resetting settings restores the default', store.pointsFor(3) === 1);
-
-check('a win scores, whatever the star count',
-  store.pointsFor(1) === 1 && store.pointsFor(2) === 1 && store.pointsFor(3) === 1);
-check('finishing with no stars scores nothing', store.pointsFor(0) === 0);
+check('resetting settings restores the default', store.pointsFor(3) === 3);
 
 /* every shelf is exactly five games, always — equal shelves are what
    make the daily ceilings equal and the scoreboard a fair contest */
@@ -198,14 +195,58 @@ const shelfOf = (p) => gamesForProfile(p).map((g) => g.meta.id);
 check(`every kid's default shelf is exactly ${GAMES_PER_KID}`,
   PROFILES.every((p) => shelfOf(p).length === GAMES_PER_KID),
   PROFILES.map((p) => `${p.name}=${shelfOf(p).length}`).join(' '));
-check('every starting shelf is exactly five',
-  [1, 2, 3].every((l) => defaultShelf(l).length === GAMES_PER_KID),
-  [1, 2, 3].map((l) => `L${l}=${defaultShelf(l).length}`).join(' '));
-check('levels 2 and 3 have more games than slots, to rotate through',
-  gamesForLevel(2).length > GAMES_PER_KID && gamesForLevel(3).length > GAMES_PER_KID,
-  `L2=${gamesForLevel(2).length} L3=${gamesForLevel(3).length}`);
-check('every default shelf game really is for that level',
-  [1, 2, 3].every((l) => defaultShelf(l).every((g) => g.meta.levels.includes(l))));
+check('every pool can fill a shelf',
+  [1, 2, 3].every((l) => poolFor(l).length >= GAMES_PER_KID),
+  [1, 2, 3].map((l) => `L${l}=${poolFor(l).length}`).join(' '));
+check('levels 2 and 3 have more in the pool than slots, so they rotate',
+  poolFor(2).length > GAMES_PER_KID && poolFor(3).length > GAMES_PER_KID,
+  `L2=${poolFor(2).length} L3=${poolFor(3).length}`);
+check('every pooled game really is built for that level',
+  [1, 2, 3].every((l) => poolFor(l).every((g) => g.meta.levels.includes(l))),
+  [1, 2, 3].flatMap((l) => poolFor(l).filter((g) => !g.meta.levels.includes(l))
+    .map((g) => `L${l}:${g.meta.id}`)).join(' '));
+check('the toddler games are kept away from the 7-year-old',
+  !poolFor(3).some((g) => ['animals', 'colors', 'shapes'].includes(g.meta.id)),
+  poolFor(3).map((g) => g.meta.id).join());
+
+/* the shelf rotates daily, but holds still within a day */
+{
+  const { gamesForProfile: shelfFor, dayStamp } = await load('js/registry.js');
+  const ids = (p, d) => shelfFor(p, d).map((g) => g.meta.id).join();
+  const days = Array.from({ length: 14 }, (_, i) => new Date(2026, 7, 3 + i, 10));
+
+  check('the same day always gives the same shelf',
+    ids(kidA, new Date(2026, 7, 3, 8)) === ids(kidA, new Date(2026, 7, 3, 21)),
+    'it reshuffled during the day');
+  check('a different day gives a different shelf',
+    new Set(days.map((d) => ids(kidA, d))).size > 1, 'never rotated');
+  check('every rotated shelf is still exactly five',
+    days.every((d) => shelfFor(kidA, d).length === GAMES_PER_KID));
+  check('rotation never repeats a game inside one day',
+    days.every((d) => new Set(shelfFor(kidA, d).map((g) => g.meta.id)).size === GAMES_PER_KID));
+  check('over two weeks the whole pool gets used',
+    new Set(days.flatMap((d) => shelfFor(kidA, d).map((g) => g.meta.id))).size
+      === poolFor(kidA.level).length,
+    `${new Set(days.flatMap((d) => shelfFor(kidA, d).map((g) => g.meta.id))).size} of ${poolFor(kidA.level).length}`);
+  check('two kids do not get identical shelves by accident',
+    days.filter((d) => ids(kidA, d) === ids(kidB, d)).length < days.length);
+  check('a pool of exactly five never rotates', // עברי, until level 1 grows
+    new Set(days.map((d) => ids(kidC, d))).size === 1);
+  check('the day stamp is a local calendar date',
+    dayStamp(new Date(2026, 7, 3, 23, 59)) === '2026-08-03', dayStamp(new Date(2026, 7, 3, 23, 59)));
+}
+
+/* scoring rewards accuracy, not just turning up */
+check('points are the star rating',
+  store.pointsFor(3) === 3 && store.pointsFor(2) === 2 && store.pointsFor(1) === 1);
+check('a game with no stars is worth nothing', store.pointsFor(0) === 0);
+check('careless play cannot out-earn careful play',
+  store.pointsFor(3) > store.pointsFor(1) * 2,
+  'three 1-star games would beat one 3-star game');
+cfg.set('pointsPerStar', 10);
+check('the per-star value scales everything', store.pointsFor(3) === 30);
+cfg.resetSettings();
+check('a medal needs real wins, not scraped passes', store.WIN_STARS === 2);
 
 const levelShelf = shelfOf(kidC);
 cfg.setEnabledGames(kidC.id, ['times', 'memory', 'clock', 'spelling', 'money']);
@@ -257,16 +298,16 @@ seed([
 
 const week = store.leaderboard(PROFILES, 'week');
 check('week counts only this week, ranked highest first',
-  week[0].profile.id === kidA.id && week[0].points === 3
-    && week[1].points === 1 && week[2].points === 0,
+  week[0].profile.id === kidA.id && week[0].points === 6
+    && week[1].points === 3 && week[2].points === 0,
   week.map((r) => `${r.profile.name}=${r.points}`).join(' '));
 
 check('a zero-star game counts as played but scores nothing',
   week.find((r) => r.profile.id === kidB.id).games === 2
-    && week.find((r) => r.profile.id === kidB.id).points === 1);
+    && week.find((r) => r.profile.id === kidB.id).points === 3);
 
 const month = store.leaderboard(PROFILES, 'month').find((r) => r.profile.id === kidC.id);
-check('month includes earlier this month but not last month', month.points === 1,
+check('month includes earlier this month but not last month', month.points === 3,
   `got ${month.points}`);
 
 check('the board runs day / week / month, with no all-time',
@@ -274,7 +315,7 @@ check('the board runs day / week / month, with no all-time',
 
 const dayBoard = store.leaderboard(PROFILES, 'day');
 check('the daily board counts only today',
-  dayBoard.find((r) => r.profile.id === kidA.id).points === 3
+  dayBoard.find((r) => r.profile.id === kidA.id).points === 6
     && dayBoard.find((r) => r.profile.id === kidC.id).points === 0,
   dayBoard.map((r) => `${r.profile.name}=${r.points}`).join(' '));
 

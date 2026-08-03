@@ -26,14 +26,33 @@ const KEY = 'kids-games:v2';
 const MAX_LOG = 3000; // ~years of play; keeps localStorage small
 
 /**
- * Every win is worth the same — one point by default. A game counts as a
- * win at one star or better; finishing with none scores nothing.
+ * SCORING — points are the star rating, so effort actually counts.
  *
- * Points are always recomputed from the stored star rating rather than
- * read back from the log, so changing pointsPerWin in settings rescales
- * past games too and the board never mixes two scoring systems.
+ * A game is graded 0-3 stars from the share of questions answered right
+ * (>=90% = 3, >=70% = 2, >=40% = 1, below that 0). Points = stars.
+ *
+ * This replaced a flat 1-point-per-win rule, which was gameable: a kid
+ * could rush, scrape one star, still bank the point, and burn through
+ * the day's allowance faster than a sibling who played properly. Now
+ * rushing costs you directly — three careless games are worth less than
+ * one careful one.
+ *
+ * Still small whole numbers (max 3 a game) so the kids can count the
+ * board themselves, which was the reason for flat scoring in the first
+ * place.  in settings scales it if you ever want to.
+ *
+ * Points are recomputed from the stored stars on every read rather than
+ * trusted from the log, so changing the setting rescales history instead
+ * of leaving two scoring systems mixed on one board.
  */
-export const pointsFor = (stars) => (stars >= 1 ? get('pointsPerWin') : 0);
+export const pointsFor = (stars) => stars * get('pointsPerStar');
+
+/**
+ * What counts as "played well" for the daily medal: 2 stars or better,
+ * i.e. at least 70% right. One star is a pass, not a success — letting
+ * it count would make the medal reachable by scraping through.
+ */
+export const WIN_STARS = 2;
 
 /** How many times a kid may finish any ONE game per day. */
 export const dailyLimit = () => get('dailyLimit');
@@ -182,7 +201,7 @@ const dayKey = (now = new Date()) => {
 export function todayStats(profileId, now = new Date()) {
   const since = startOfDay(now);
   const rows = read().log.filter((e) => e.p === profileId && e.at >= since);
-  const wins = rows.filter((e) => e.s >= 1).length;
+  const wins = rows.filter((e) => e.s >= WIN_STARS).length;
   return { plays: rows.length, wins, rate: rows.length ? wins / rows.length : 0 };
 }
 
