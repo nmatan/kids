@@ -20,6 +20,9 @@ import * as clock from './games/clock.js';
 import * as spelling from './games/spelling.js';
 import * as translate from './games/translate.js';
 import * as money from './games/money.js';
+import * as flags from './games/flags.js';
+import * as geography from './games/geography.js';
+import * as truefalse from './games/truefalse.js';
 import { enabledGames } from './settings.js';
 
 export const GAMES = [
@@ -28,11 +31,32 @@ export const GAMES = [
   times, clock, spelling, translate,  // level 3
   money,                              // levels 2-3
   memory,                             // levels 1-2
+  flags, geography, truefalse,        // levels 2-3
 ];
 
 export const gamesForLevel = (level) => GAMES.filter((g) => g.meta.levels.includes(level));
 
 export const getGame = (id) => GAMES.find((g) => g.meta.id === id) || null;
+
+/**
+ * ✏️ THE STARTING FIVE FOR EACH LEVEL.
+ *
+ * There are more games per level than shelf slots, which is the point —
+ * a parent rotates them in the settings screen every so often and the
+ * shelf stays fresh. These are just the defaults: one game per broad
+ * area, so nobody starts out with three kinds of maths and no reading.
+ */
+const DEFAULT_SHELF = {
+  1: ['animals', 'colors', 'counting', 'shapes', 'memory'],
+  2: ['letters', 'addsub', 'money', 'flags', 'truefalse'],
+  3: ['times', 'spelling', 'translate', 'geography', 'truefalse'],
+};
+
+/** The starting shelf for a level, falling back to everything at it. */
+export function defaultShelf(level) {
+  const listed = (DEFAULT_SHELF[level] || []).map(getGame).filter(Boolean);
+  return listed.length ? listed : gamesForLevel(level);
+}
 
 /**
  * Every kid has exactly this many games — always, whatever the settings
@@ -55,7 +79,7 @@ export function gamesForProfile(profile) {
   const chosen = enabledGames(profile.id);
   const base = chosen
     ? GAMES.filter((g) => chosen.includes(g.meta.id))
-    : gamesForLevel(profile.level);
+    : defaultShelf(profile.level);
 
   const shelf = base.slice(0, GAMES_PER_KID);
   if (shelf.length < GAMES_PER_KID) {

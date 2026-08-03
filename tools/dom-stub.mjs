@@ -49,7 +49,12 @@ export class Node {
   }
   removeChild(n) { this.children.splice(this.children.indexOf(n), 1); }
   remove() { this.parent?.removeChild(this); }
-  setAttribute(k, v) { this.attrs[k] = String(v); }
+  setAttribute(k, v) {
+    this.attrs[k] = String(v);
+    // Real browsers keep class and classList in sync; SVG nodes are built
+    // with setAttribute('class', …) rather than .className.
+    if (k === 'class') this.className = v;
+  }
   getAttribute(k) { return this.attrs[k]; }
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
   removeEventListener() {}

@@ -11,6 +11,7 @@
    typos and broken imports before they reach the tablet.
    --------------------------------------------------------------- */
 
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { makeDom, Node } from './dom-stub.mjs';
@@ -27,7 +28,12 @@ const check = (name, ok, extra = '') => {
 
 makeDom();
 
-const { GAMES, gamesForLevel } = await load('js/registry.js');
+// Short games: the point is that each one mounts, plays and scores —
+// not that it can count to twelve. Reset before the settings suite.
+const settingsForSpeed = await load('js/settings.js');
+settingsForSpeed.set('rounds', 3);
+
+const { GAMES, gamesForLevel, defaultShelf } = await load('js/registry.js');
 const { PROFILES } = await load('js/profiles.js');
 
 /* ---------- 1. play every game ---------- */
@@ -65,6 +71,7 @@ for (const game of GAMES) {
           .filter((n) => !n.classList.contains('done') && !n.classList.contains('up'));
         const choices = stage.querySelectorAll('.choice').filter((n) => !n.disabled);
         const price = stage.querySelectorAll('.price')[0];
+        const pins = stage.querySelectorAll('.pin').filter((n) => !n.disabled);
 
         // Paying: the NIS denominations are a canonical system, so taking
         // the largest piece that still fits always lands exactly on the
@@ -79,7 +86,9 @@ for (const game of GAMES) {
           continue;
         }
 
-        if (cards.length) {
+        if (pins.length) {
+          pins[cursor++ % pins.length].dispatch('click');
+        } else if (cards.length) {
           const known = cards.find((c) => seen.has(c.textContent) && seen.get(c.textContent) !== c);
           if (known) {
             seen.get(known.textContent).dispatch('click');
@@ -132,14 +141,15 @@ check('home shows every kid by name', PROFILES.every((p) => appRoot.textContent.
 
 for (const p of PROFILES) {
   await navigate(`#/p/${p.id}`);
-  const expected = gamesForLevel(p.level);
+  const expected = defaultShelf(p.level);
   check(`${p.name} (level ${p.level}) sees ${expected.length} games`,
     find('game-card').length === expected.length, `got ${find('game-card').length}`);
 
   for (const g of expected) {
     await navigate(`#/p/${p.id}/g/${g.meta.id}`);
     check(`  ${p.name} → ${g.meta.title} draws its first round`,
-      find('choice').length > 0 || find('mem-card').length > 0 || find('money').length > 0,
+      find('choice').length > 0 || find('mem-card').length > 0
+        || find('money').length > 0 || find('pin').length > 0,
       'stage was empty');
   }
 }
@@ -187,9 +197,14 @@ const shelfOf = (p) => gamesForProfile(p).map((g) => g.meta.id);
 check(`every kid's default shelf is exactly ${GAMES_PER_KID}`,
   PROFILES.every((p) => shelfOf(p).length === GAMES_PER_KID),
   PROFILES.map((p) => `${p.name}=${shelfOf(p).length}`).join(' '));
-check('every level has exactly five games by default',
-  [1, 2, 3].every((l) => gamesForLevel(l).length === GAMES_PER_KID),
-  [1, 2, 3].map((l) => `L${l}=${gamesForLevel(l).length}`).join(' '));
+check('every starting shelf is exactly five',
+  [1, 2, 3].every((l) => defaultShelf(l).length === GAMES_PER_KID),
+  [1, 2, 3].map((l) => `L${l}=${defaultShelf(l).length}`).join(' '));
+check('levels 2 and 3 have more games than slots, to rotate through',
+  gamesForLevel(2).length > GAMES_PER_KID && gamesForLevel(3).length > GAMES_PER_KID,
+  `L2=${gamesForLevel(2).length} L3=${gamesForLevel(3).length}`);
+check('every default shelf game really is for that level',
+  [1, 2, 3].every((l) => defaultShelf(l).every((g) => g.meta.levels.includes(l))));
 
 const levelShelf = shelfOf(kidC);
 cfg.setEnabledGames(kidC.id, ['times', 'memory', 'clock', 'spelling', 'money']);
@@ -601,6 +616,151 @@ await navigate('#/medals');
 check('the medal shelf lists it', find('medal').length >= 1);
 check('the medal shelf shows the prize for parents',
   appRoot.textContent.includes(spun.prize), 'prize missing');
+
+/* ---------- 3i. countries, flags, map and true/false ---------- */
+
+console.log('\nWorld\n');
+
+const { COUNTRIES, countriesFor, LAND_PATHS, positionOf } = await load('js/countries.js');
+
+check('every country has a name, a flag and coordinates',
+  COUNTRIES.every((c) => c.he && c.flag && Number.isFinite(c.lat) && Number.isFinite(c.lon)),
+  COUNTRIES.find((c) => !c.he || !c.flag)?.he);
+check('no duplicate countries',
+  new Set(COUNTRIES.map((c) => c.he)).size === COUNTRIES.length);
+check('every flag is a real two-letter flag emoji',
+  COUNTRIES.every((c) => [...c.flag].length === 2
+    && [...c.flag].every((ch) => ch.codePointAt(0) >= 0x1f1e6 && ch.codePointAt(0) <= 0x1f1ff)),
+  COUNTRIES.find((c) => [...c.flag].length !== 2)?.he);
+check('all coordinates are on the globe',
+  COUNTRIES.every((c) => Math.abs(c.lat) <= 90 && Math.abs(c.lon) <= 180));
+check('a marker never lands outside the map',
+  COUNTRIES.every((c) => {
+    const at = positionOf(c);
+    return at.left >= 0 && at.left <= 100 && at.top >= 0 && at.top <= 100;
+  }));
+check('the easy set is big enough for a 5-year-old to get variety',
+  countriesFor(2).length >= 12, `${countriesFor(2).length}`);
+check('level 3 gets more countries than level 2',
+  countriesFor(3).length > countriesFor(2).length,
+  `${countriesFor(3).length} vs ${countriesFor(2).length}`);
+check('the map has landmasses to draw', LAND_PATHS.length >= 8, `${LAND_PATHS.length}`);
+check('every land path is well formed',
+  LAND_PATHS.every((d) => /^M[\d.,L-]+Z$/.test(d)),
+  LAND_PATHS.find((d) => !/^M[\d.,L-]+Z$/.test(d))?.slice(0, 40));
+
+// a couple of spot checks that the projection is the right way up
+const israel = COUNTRIES.find((c) => c.he === 'ישראל');
+const australia = COUNTRIES.find((c) => c.he === 'אוסטרליה');
+const canada = COUNTRIES.find((c) => c.he === 'קנדה');
+check('Australia plots below Israel', positionOf(australia).top > positionOf(israel).top);
+check('Canada plots left of Israel', positionOf(canada).left < positionOf(israel).left);
+
+/* the map game */
+
+const geo = GAMES.find((g) => g.meta.id === 'geography');
+for (const [level, pins] of [[2, 3], [3, 5]]) {
+  const stage = new Node('div');
+  const teardown = geo.mount(stage, {
+    profile: { ...PROFILES[0], level },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  check(`the map offers ${pins} places to choose at level ${level}`,
+    stage.querySelectorAll('.pin').length === pins,
+    `${stage.querySelectorAll('.pin').length}`);
+  check(`level ${level} draws the world behind them`,
+    stage.querySelectorAll('.world').length === 1);
+  teardown?.();
+}
+
+// a wrong tap must light up where the country actually was
+{
+  const stage = new Node('div');
+  geo.mount(stage, {
+    profile: { ...PROFILES[0], level: 3 },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  const asked = stage.querySelectorAll('.prompt')[0].textContent;
+  const pinList = stage.querySelectorAll('.pin');
+  const wrongPin = pinList.find((p) => !asked.includes(p.getAttribute('aria-label')));
+  wrongPin.dispatch('click');
+  await sleep(60);
+  check('a wrong place reveals the right one',
+    stage.querySelectorAll('.pin').some((p) => p.classList.contains('reveal')),
+    'nothing was revealed');
+}
+
+/* flags */
+
+const flagsGame = GAMES.find((g) => g.meta.id === 'flags');
+{
+  const stage = new Node('div');
+  flagsGame.mount(stage, {
+    profile: { ...PROFILES[1], level: 2 },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  const shownFlag = stage.querySelectorAll('.big-flag')[0]?.textContent;
+  check('a flag is shown to identify', Boolean(shownFlag), 'no flag on screen');
+  const country = COUNTRIES.find((c) => c.flag === shownFlag);
+  check('the flag shown is one of ours', Boolean(country), shownFlag);
+
+  const opts = stage.querySelectorAll('.choice');
+  check('three countries are offered', opts.length === 3, `${opts.length}`);
+  const wrongOpt = opts.find((o) => o.textContent !== country.he);
+  wrongOpt.dispatch('click');
+  await sleep(60);
+  check('a wrong country reveals the right one',
+    opts.some((o) => o.textContent === country.he && o.classList.contains('correct')),
+    'the answer was not revealed');
+}
+
+/* true or false */
+
+const tfSource = readFileSync(join(ROOT, 'js/games/truefalse.js'), 'utf8');
+const tfRows = [...tfSource.matchAll(/\{ s: '(.+?)', t: (true|false), why: '(.*?)', lv: (\d) \}/g)]
+  .map((m) => ({ s: m[1], t: m[2] === 'true', why: m[3], lv: Number(m[4]) }));
+
+check('there are plenty of statements', tfRows.length >= 40, `${tfRows.length}`);
+check('no statement is repeated',
+  new Set(tfRows.map((r) => r.s)).size === tfRows.length);
+check('both levels have enough to avoid repeats in a game',
+  tfRows.filter((r) => r.lv === 2).length >= 15 && tfRows.filter((r) => r.lv === 3).length >= 15,
+  `L2=${tfRows.filter((r) => r.lv === 2).length} L3=${tfRows.filter((r) => r.lv === 3).length}`);
+
+for (const lv of [2, 3]) {
+  const rows = tfRows.filter((r) => r.lv === lv);
+  const trues = rows.filter((r) => r.t).length;
+  const share = trues / rows.length;
+  // If most answers were one way, guessing the same every time would win.
+  check(`level ${lv} is not guessable by always saying the same thing`,
+    share > 0.35 && share < 0.65, `${Math.round(share * 100)}% true`);
+}
+
+check('almost every statement explains itself',
+  tfRows.filter((r) => r.why).length >= tfRows.length - 1,
+  `${tfRows.filter((r) => !r.why).length} without an explanation`);
+check('statements stay short enough to hear and hold',
+  tfRows.every((r) => r.s.length <= 60), tfRows.find((r) => r.s.length > 60)?.s);
+
+const tfGame = GAMES.find((g) => g.meta.id === 'truefalse');
+{
+  const stage = new Node('div');
+  tfGame.mount(stage, {
+    profile: { ...PROFILES[0], level: 3 },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  const said = stage.querySelectorAll('.statement')[0].textContent;
+  const row = tfRows.find((r) => said.startsWith(r.s));
+  check('the statement comes from the list', Boolean(row), said.slice(0, 40));
+  check('level 3 only asks level 3 statements', row.lv === 3, `lv ${row?.lv}`);
+
+  const buttons = stage.querySelectorAll('.choice');
+  check('true and false are both offered', buttons.length === 2);
+  buttons[row.t ? 0 : 1].dispatch('click'); // yes is first
+  await sleep(60);
+  check('the explanation appears even when they are right',
+    stage.querySelectorAll('.why')[0].classList.contains('show'));
+}
 
 /* ---------- 4. read-along highlighting ---------- */
 

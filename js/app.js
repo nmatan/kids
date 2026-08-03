@@ -11,7 +11,9 @@
    --------------------------------------------------------------- */
 
 import { PROFILES, getProfile } from './profiles.js';
-import { GAMES, GAMES_PER_KID, gamesForProfile, gamesForLevel, getGame } from './registry.js';
+import {
+  GAMES, GAMES_PER_KID, gamesForProfile, defaultShelf, getGame,
+} from './registry.js';
 import {
   bestStars, recordPlay, totalStars, pointsIn, leaderboard, PERIODS,
   remainingToday, remainingAcross, dailyLimit, resetAll,
@@ -339,7 +341,7 @@ function dangerButton(label, onConfirm) {
 
 function gamesForKidBlock(profile) {
   const chosen = settings.enabledGames(profile.id);
-  const active = new Set(chosen ?? gamesForLevel(profile.level).map((g) => g.meta.id));
+  const active = new Set(chosen ?? defaultShelf(profile.level).map((g) => g.meta.id));
 
   const counter = el('span', { class: 'chip-count' });
   const chips = el('div', { class: 'chips' });

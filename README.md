@@ -253,11 +253,18 @@ swapping a game means dropping one first. The counter turns red until it is 5/5.
 and their shelf changes. To hand a single game across levels instead, use the
 settings screen — that overrides the level for that kid only.
 
-| kid | age | level | default shelf |
+| kid | age | level | starting five |
 |-----|-----|-------|------------------------|
-| אביתר | 7 | 3 | לוח הכפל · מה השעה? · מרכיבים מילה · מה זה אומר? · לשלם בחנות · זיכרון |
-| אמיתי | 5 | 2 | סופרים ביחד · אותיות · חיבור וחיסור · לשלם בחנות · זיכרון |
-| עברי  | 2 | 1 | חברים מהחווה · צבעים · סופרים ביחד · זיכרון |
+| אביתר | 7 | 3 | לוח הכפל · מרכיבים מילה · מה זה אומר? · איפה בעולם? · נכון או לא? |
+| אמיתי | 5 | 2 | אותיות · חיבור וחיסור · לשלם בחנות · דגלים · נכון או לא? |
+| עברי  | 2 | 1 | חברים מהחווה · צבעים · סופרים ביחד · צורות · זיכרון |
+
+Levels 2 and 3 have **eight** games available but only five slots, so there is a
+bench to rotate from — swap them in the settings screen when a shelf goes stale.
+The starting five are set in `DEFAULT_SHELF` in [js/registry.js](js/registry.js),
+one game per broad area so nobody begins with three kinds of maths and no
+reading. Level 3 currently benches מה השעה?, לשלם בחנות and דגלים; level 2
+benches סופרים ביחד, זיכרון and איפה בעולם?.
 
 Level 1 games run in **forgiving mode**: a wrong tap shakes that one choice but
 leaves the round open, so a 2-year-old never lands on a fail screen — he just
@@ -267,6 +274,25 @@ doesn't score the point. Levels 2–3 show the right answer and move on.
 
 Most games read from a plain list at the top of their file — no logic to touch:
 
+- **מדינות, דגלים ומיקומים** → `COUNTRIES` in [js/countries.js](js/countries.js),
+  shared by **דגלים** and **איפה בעולם?**. One row per country with its Hebrew
+  name, flag and coordinates; `easy: true` marks the ones level 2 draws from.
+  Adding a country puts it in both games at once.
+
+  The map is a simplified world drawn as SVG outlines in the same file. The
+  projection is deliberately the plainest one there is — `x = lon + 180`,
+  `y = 90 - lat` — so a country's position on screen is literally its
+  coordinates, and the shapes are context for the markers rather than an atlas.
+
+  > Flags are emoji. Android renders them properly, which is what matters — but
+  > **Windows does not**, so on your PC you'll see `IL` instead of 🇮🇱. That's a
+  > preview-only quirk; check that game on the tablet.
+
+- **משפטי נכון/לא נכון** → `STATEMENTS` in [js/games/truefalse.js](js/games/truefalse.js).
+  Each row is `{ s, t, why, lv }`. They're chosen to need judgement rather than
+  recall — plenty of them sound right and aren't (העטלף הוא ציפור, הקרח כבד
+  ממים, החומה הסינית נראית מהחלל). `npm test` checks that neither level is
+  guessable by always answering the same way.
 - **משפטים באנגלית** → `SENTENCES` in [js/games/translate.js](js/games/translate.js).
   63 pairs to start with; add rows as `{ en, he, tag }`. Keep English to 4–5
   words and Hebrew to 3–5. The `tag` matters: wrong answers are drawn from the
