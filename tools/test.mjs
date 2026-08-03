@@ -176,6 +176,87 @@ check('every kid appears even with no plays', week.length === PROFILES.length);
 check('the week starts on Sunday', new Date(store.startOfWeek(now)).getDay() === 0);
 check('stars map to points', store.pointsFor(3) === 30 && store.pointsFor(0) === 5);
 
+/* ---------- 3b. daily allowance ---------- */
+
+console.log('\nDaily limit\n');
+
+const { cheerLine } = await load('js/text.js');
+const limitKid = PROFILES[0];
+const limitGame = gamesForLevel(limitKid.level)[0].meta.id;
+const seed = (entries) => globalThis.localStorage.setItem('kids-games:v2',
+  JSON.stringify({ best: {}, log: entries }));
+
+seed([]);
+check(`a fresh day allows ${store.DAILY_LIMIT} plays`,
+  store.remainingToday(limitKid.id, limitGame) === store.DAILY_LIMIT);
+
+seed(Array.from({ length: 4 }, () => play(Date.now(), limitKid, 2)).map((e) => ({ ...e, g: limitGame })));
+check('each play uses one up', store.remainingToday(limitKid.id, limitGame) === store.DAILY_LIMIT - 4,
+  `got ${store.remainingToday(limitKid.id, limitGame)}`);
+
+seed(Array.from({ length: store.DAILY_LIMIT + 3 }, () => play(Date.now(), limitKid, 3)).map((e) => ({ ...e, g: limitGame })));
+check('it never goes negative', store.remainingToday(limitKid.id, limitGame) === 0,
+  `got ${store.remainingToday(limitKid.id, limitGame)}`);
+
+// yesterday's plays must not eat into today
+seed(Array.from({ length: store.DAILY_LIMIT }, () => play(store.startOfDay(now) - 1000, limitKid, 3)).map((e) => ({ ...e, g: limitGame })));
+check('the allowance resets at midnight',
+  store.remainingToday(limitKid.id, limitGame) === store.DAILY_LIMIT,
+  `got ${store.remainingToday(limitKid.id, limitGame)}`);
+
+// the limit is per game, not shared across the shelf
+const otherGame = gamesForLevel(limitKid.level)[1].meta.id;
+seed(Array.from({ length: store.DAILY_LIMIT }, () => play(Date.now(), limitKid, 3)).map((e) => ({ ...e, g: limitGame })));
+check('the limit is per game, not shared',
+  store.remainingToday(limitKid.id, limitGame) === 0
+    && store.remainingToday(limitKid.id, otherGame) === store.DAILY_LIMIT);
+check('one kid using theirs up does not affect another',
+  store.remainingToday(PROFILES[1].id, limitGame) === store.DAILY_LIMIT);
+
+// ...and the UI reflects it
+await navigate(`#/p/${limitKid.id}`);
+check('a used-up game is locked on the shelf', find('locked').length === 1,
+  `${find('locked').length} locked cards`);
+await navigate(`#/p/${limitKid.id}/g/${limitGame}`);
+check('opening a used-up game bounces to the shelf',
+  find('game-card').length > 0 && find('choice').length === 0);
+await navigate(`#/p/${limitKid.id}/g/${otherGame}`);
+check('a game with plays left still opens',
+  find('choice').length > 0 || find('mem-card').length > 0);
+
+/* ---------- 3c. the spoken cheer ---------- */
+
+console.log('\nCheer\n');
+
+const board = (...pts) => PROFILES.map((p, i) => ({ profile: p, points: pts[i], games: 1, stars: 1 }))
+  .sort((a, b) => b.points - a.points);
+
+const leading = cheerLine({
+  profile: PROFILES[0], stars: 3, points: 30, remaining: 5, rows: board(120, 40, 20),
+});
+check('leader is told their margin', leading.includes('80') && leading.includes(PROFILES[1].name),
+  leading);
+
+const chased = cheerLine({
+  profile: PROFILES[0], stars: 3, points: 30, remaining: 5, rows: board(120, 110, 20),
+});
+check('a narrow lead sounds urgent', chased.includes('נושף'), chased);
+
+const chasing = cheerLine({
+  profile: PROFILES[1], stars: 2, points: 20, remaining: 5, rows: board(120, 100, 20),
+});
+check('the runner-up is told the gap to catch',
+  chasing.includes('20') && chasing.includes(PROFILES[0].name), chasing);
+
+const lastPlay = cheerLine({
+  profile: PROFILES[0], stars: 3, points: 30, remaining: 0, rows: board(120, 40, 20),
+});
+check('the last play of the day says come back tomorrow', lastPlay.includes('מחר'), lastPlay);
+check('a normal play says how many are left',
+  leading.includes('5') && !leading.includes('מחר'), leading);
+check('every cheer names points and stays short',
+  [leading, chased, chasing, lastPlay].every((s) => s.includes('נקודות') && s.length < 260));
+
 /* ---------- 4. read-along highlighting ---------- */
 
 console.log('\nRead-along\n');

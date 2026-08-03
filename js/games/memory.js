@@ -90,15 +90,19 @@ export function mount(stage, ctx) {
     const slack = ctx.profile.level <= 1 ? 2.4 : 1.9;
     const stars = moves <= pairCount * 1.35 ? 3 : moves <= pairCount * slack ? 2 : 1;
 
-    celebrate();
+    celebrate(stars >= 2 ? 90 : 45);
     sfx.win();
-    speak(stars === 3 ? 'איזה זיכרון מדהים!' : 'מצאתם את כולם!');
-    await wait(700);
+    await wait(600);
     if (dead) return;
 
+    const reward = ctx.finish(stars); // record before drawing the card
     clear(stage);
-    stage.append(endCard(ctx, stars, `כל ${pairCount} הזוגות ב-${moves} ניסיונות!`));
-    ctx.finish(stars);
+    stage.append(endCard(ctx, {
+      stars,
+      msg: `כל ${pairCount} הזוגות ב-${moves} ניסיונות!`,
+      reward,
+    }));
+    speak(reward?.speech || 'מצאתם את כולם!', { rate: 0.95 });
   }
 
   deck.forEach((card) => grid.append(makeCard(card)));

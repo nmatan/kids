@@ -3,7 +3,7 @@
    Keep game files short by putting anything reusable in here.
    --------------------------------------------------------------- */
 
-import { T } from './text.js';
+import { T, REWARD } from './text.js';
 
 /* ---------- random ---------- */
 
@@ -245,14 +245,29 @@ export function celebrate(count = 60) {
 
 export const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** The shared "you finished" card. Games that skip Round can use it too. */
-export function endCard(ctx, stars, msg, score = '🎉') {
+/**
+ * The shared "you finished" card. Games that skip Round use it too.
+ *
+ * `reward` is whatever ctx.finish() returned — points, weekly rank and
+ * plays left today. Call ctx.finish() BEFORE building the card so those
+ * numbers already include the game just played.
+ */
+export function endCard(ctx, { stars, msg, score = '🎉', reward = null }) {
   return el('div', { class: 'result' },
     el('div', { class: 'score', text: score }),
     el('div', { class: 'stars-big', text: '★'.repeat(stars) + '☆'.repeat(3 - stars) }),
     el('div', { class: 'msg', text: msg }),
+    reward ? el('div', { class: 'reward' },
+      el('div', { class: 'earned', text: REWARD.earned(reward.points) }),
+      el('div', { class: 'rank-line', text: REWARD.rank(reward.rank) }),
+      el('div', { class: `left-line${reward.remaining <= 2 ? ' low' : ''}`,
+        text: reward.remaining === 0 ? REWARD.lastOne : REWARD.left(reward.remaining) }),
+    ) : null,
     el('div', { class: 'choices' },
-      el('button', { class: 'btn primary', onClick: () => ctx.replay() }, T.again),
+      // No replay button once the day's allowance for this game is gone.
+      reward && !reward.canReplay
+        ? null
+        : el('button', { class: 'btn primary', onClick: () => ctx.replay() }, T.again),
       el('button', { class: 'btn', onClick: () => ctx.exit() }, T.done),
     ),
   );
@@ -356,11 +371,16 @@ export class Round {
     const stars = pct >= 0.9 ? 3 : pct >= 0.7 ? 2 : pct >= 0.4 ? 1 : 0;
     const msg = [T.tryAgain, T.goodTry, T.greatJob, T.perfect][stars];
 
-    if (stars >= 2) { celebrate(); sfx.win(); } else { sfx.correct(); }
-    speak(msg);
+    // Record first: the card shows points, rank and plays-left, and those
+    // have to already include the game that just ended.
+    const reward = this.ctx.finish(stars);
 
-    this.stage.append(endCard(this.ctx, stars, msg, `${this.score}/${this.total}`));
-    this.ctx.finish(stars);
+    celebrate(stars >= 2 ? 90 : 45);
+    sfx.win();
+    this.stage.append(endCard(this.ctx, {
+      stars, msg, score: `${this.score}/${this.total}`, reward,
+    }));
+    speak(reward?.speech || msg, { rate: 0.95 });
   }
 }
 

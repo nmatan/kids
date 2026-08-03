@@ -42,6 +42,73 @@ export const T = {
     'הגדרות ← נגישות ← טקסט לדיבור ← שפה: עברית',
 };
 
+/* ---------------------------------------------------------------
+   Daily allowance + the spoken cheer at the end of a game.
+   --------------------------------------------------------------- */
+
+/** Masculine / feminine picker, driven by the profile's `gender`. */
+const g = (p, mas, fem) => (p?.gender === 'f' ? fem : mas);
+
+export const REWARD = {
+  earned: (n) => `+${n} נקודות`,
+  rank: (i) => ['🥇 מקום ראשון השבוע', '🥈 מקום שני השבוע', '🥉 מקום שלישי השבוע'][i]
+    || `מקום ${i + 1} השבוע`,
+  left: (n) => (n === 1 ? 'נשאר עוד משחק אחד היום' : `נשארו עוד ${n} משחקים היום`),
+  lastOne: 'זה היה האחרון להיום',
+  lockedTitle: 'נגמר להיום',
+  lockedHint: 'מחר יהיו עוד 10',
+  leftShort: (n) => `נשארו ${n} היום`,
+};
+
+/**
+ * The congratulation spoken after a finished game: how they did, what
+ * they earned, how many plays are left today, and where they stand this
+ * week. Competitive and a bit cheeky, never mean — nobody is told they're
+ * losing, only how close the next place is.
+ *
+ * @param rows leaderboard() output for the week, already including this play
+ */
+export function cheerLine({ profile, stars, points, remaining, rows }) {
+  const praise = ['ניסיון יפה!', 'כל הכבוד!', 'יפה מאוד!', 'וואו, מושלם!'][stars];
+  const got = `${g(profile, 'קיבלת', 'קיבלת')} ${points} נקודות.`;
+
+  const me = rows.findIndex((r) => r.profile.id === profile.id);
+  const mine = rows[me]?.points ?? 0;
+  let standing;
+
+  if (me === 0) {
+    const next = rows[1];
+    const gap = mine - (next?.points ?? 0);
+    if (!next || next.points === 0) {
+      standing = `${g(profile, 'אתה היחיד ששיחק', 'את היחידה ששיחקה')} השבוע, כל הבמה שלך!`;
+    } else if (gap === 0) {
+      standing = `${g(profile, 'אתה', 'את')} ו${next.profile.name} בדיוק תיקו! מי ${g(profile, 'ייקח', 'תיקח')} את ההובלה?`;
+    } else if (gap <= 20) {
+      standing = `${g(profile, 'אתה', 'את')} ${g(profile, 'ראשון', 'ראשונה')}, אבל ${next.profile.name} נושף לך בעורף, רק ${gap} נקודות מאחורה!`;
+    } else {
+      standing = `${g(profile, 'אתה', 'את')} ${g(profile, 'ראשון', 'ראשונה')} עם ${gap} נקודות יתרון על ${next.profile.name}. ${g(profile, 'תמשיך', 'תמשיכי')} ככה!`;
+    }
+  } else {
+    const ahead = rows[me - 1];
+    const gap = ahead.points - mine;
+    if (gap === 0) {
+      standing = `${g(profile, 'אתה', 'את')} ו${ahead.profile.name} תיקו! עוד משחק אחד ${g(profile, 'ואתה עוקף', 'ואת עוקפת')}.`;
+    } else if (gap <= 30) {
+      standing = `${ahead.profile.name} רק ${gap} נקודות ${g(profile, 'לפניך', 'לפנייך')}. עוד משחק טוב ${g(profile, 'ואתה עוקף', 'ואת עוקפת')} ${g(ahead.profile, 'אותו', 'אותה')}!`;
+    } else {
+      standing = `${ahead.profile.name} ${g(ahead.profile, 'מוביל', 'מובילה')} ב-${gap} נקודות. יש ${g(profile, 'לך', 'לך')} עוד זמן היום לצמצם!`;
+    }
+  }
+
+  const left = remaining === 0
+    ? `זה היה האחרון להיום במשחק הזה. ${g(profile, 'תחזור', 'תחזרי')} מחר לעוד עשרה!`
+    : remaining === 1
+      ? 'נשאר לך עוד משחק אחד כזה היום.'
+      : `נשארו לך עוד ${remaining} משחקים כאלה היום.`;
+
+  return `${praise} ${got} ${standing} ${left}`;
+}
+
 /** Counting numbers as kids say them (feminine forms). */
 export const NUM = [
   'אפס', 'אחת', 'שתיים', 'שלוש', 'ארבע', 'חמש', 'שש',

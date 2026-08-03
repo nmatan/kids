@@ -19,6 +19,9 @@ const MAX_LOG = 3000; // ~years of play; keeps localStorage small
 export const POINTS = { 3: 30, 2: 20, 1: 10, 0: 5 };
 export const pointsFor = (stars) => POINTS[stars] ?? 0;
 
+/** How many times a kid may play any single game per day. */
+export const DAILY_LIMIT = 10;
+
 function read() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY));
@@ -54,6 +57,24 @@ export function recordPlay(profileId, gameId, stars) {
 }
 
 /* ---------- leaderboards ---------- */
+
+/** Local midnight — the day rolls over at their midnight, not UTC's. */
+export function startOfDay(now = new Date()) {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/** How many times this kid has finished this game today. */
+export function playsToday(profileId, gameId, now = new Date()) {
+  const since = startOfDay(now);
+  return read().log.filter((e) => e.p === profileId && e.g === gameId && e.at >= since).length;
+}
+
+/** Plays left today, 0 when they've used them all up. */
+export function remainingToday(profileId, gameId, now = new Date()) {
+  return Math.max(0, DAILY_LIMIT - playsToday(profileId, gameId, now));
+}
 
 /** Midnight on the most recent Sunday — the week starts on Sunday here. */
 export function startOfWeek(now = new Date()) {

@@ -113,6 +113,39 @@ questions right both earn 30. The competition is about playing well at your own
 level, not about who got the harder games — otherwise the 7-year-old wins every
 week by default and the 2-year-old stops caring.
 
+### The daily allowance
+
+Each kid gets **10 plays of each game per day** (`DAILY_LIMIT` in
+[js/store.js](js/store.js)). Every game card shows how many are left; at zero it
+locks with 🔒 **נגמר להיום**, and the URL is guarded too so a bookmark can't get
+around it. It resets at local midnight.
+
+This is what stops one kid grinding a single easy game all afternoon — to
+maximise points you have to play across the whole shelf.
+
+> ⚠️ **The allowance is per game, so the shelf sizes matter.** אביתר has 5 games
+> and the other two have 4, which means he can bank 50 plays a day against their
+> 40. If that starts showing up as a permanent lead, the fix is either to give
+> everyone the same number of games, or to switch `DAILY_LIMIT` to a per-kid
+> daily total instead of a per-game one.
+
+### The reward moment
+
+Finishing a game fires confetti, a `+30 נקודות` badge that pops in, the weekly
+rank, and the plays left today — plus a spoken Hebrew line that combines all of
+it with where they stand:
+
+> וואו, מושלם! קיבלת 30 נקודות. אתה ראשון, אבל אמיתי נושף לך בעורף, רק 10 נקודות מאחורה! נשארו לך עוד 4 משחקים כאלה היום.
+
+The wording lives in `cheerLine()` in [js/text.js](js/text.js) and adapts to the
+situation: a comfortable lead gets the margin, a narrow one gets told who's
+breathing down their neck, a chaser gets the exact gap to overtake, and the last
+play of the day says come back tomorrow. It never tells a kid they're losing —
+only how close the next place is.
+
+Verb forms follow each profile's `gender`, so adding a daughter later is a
+one-character change per profile.
+
 🏆 **טבלת המובילים** on the home screen ranks the three of them by
 **השבוע / החודש / כל הזמן**. The week starts on Sunday. Everyone always
 appears in the table, even on a week they haven't played, so nobody vanishes

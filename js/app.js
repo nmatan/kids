@@ -11,9 +11,11 @@
 
 import { PROFILES, getProfile } from './profiles.js';
 import { gamesForLevel, getGame } from './registry.js';
-import { bestStars, recordPlay, totalStars, pointsIn, leaderboard, PERIODS } from './store.js';
+import {
+  bestStars, recordPlay, totalStars, pointsIn, leaderboard, PERIODS, remainingToday,
+} from './store.js';
 import { el, clear, speak, stopSpeech, sfx, setSpeechLang, hasVoice } from './kit.js';
-import { T, LANG } from './text.js';
+import { T, LANG, REWARD, cheerLine } from './text.js';
 
 setSpeechLang(LANG);
 
@@ -125,17 +127,22 @@ function shelfScreen(profile) {
       el('div', { class: 'pill' }, `🏅 ${pointsIn(profile.id, 'week')} ${T.pointsShort}`),
     ),
     el('div', { class: 'game-grid' },
-      games.map((g) =>
-        el('button', {
-          class: 'game-card',
+      games.map((g) => {
+        const left = remainingToday(profile.id, g.meta.id);
+        const locked = left <= 0;
+        return el('button', {
+          class: `game-card${locked ? ' locked' : ''}`,
+          disabled: locked,
           onClick: () => { sfx.tap(); go(`/p/${profile.id}/g/${g.meta.id}`); },
         },
-          el('div', { class: 'emoji', text: g.meta.emoji }),
+          el('div', { class: 'emoji', text: locked ? '🔒' : g.meta.emoji }),
           el('div', { class: 'title', text: g.meta.title }),
-          el('div', { class: 'blurb', text: g.meta.blurb }),
+          el('div', { class: 'blurb', text: locked ? REWARD.lockedHint : g.meta.blurb }),
           el('div', { class: 'stars', text: starRow(bestStars(profile.id, g.meta.id)) }),
-        ),
-      ),
+          el('div', { class: `left-badge${left <= 2 && !locked ? ' low' : ''}` },
+            locked ? REWARD.lockedTitle : REWARD.leftShort(left)),
+        );
+      }),
     ),
     games.length ? null : el('p', { class: 'subtitle', text: T.noGames }),
   );
@@ -169,13 +176,30 @@ function playScreen(profile, game) {
         dots.append(el('i', { class: state }));
       }
     },
+    /**
+     * Called by a game the moment it ends. Records the play, then hands
+     * back everything the end card and the spoken cheer need — points,
+     * this week's rank, and how many plays of this game are left today.
+     */
     finish(stars) {
       const points = recordPlay(profile.id, game.meta.id, stars);
-      // Show what the round was worth, right where they're looking.
-      stage.append(el('div', { class: 'earned', text: `+${points} ${T.points}` }));
+      const remaining = remainingToday(profile.id, game.meta.id);
+      const rows = leaderboard(PROFILES, 'week');
+      const rank = rows.findIndex((r) => r.profile.id === profile.id);
+
+      return {
+        points,
+        remaining,
+        rank,
+        canReplay: remaining > 0,
+        speech: cheerLine({ profile, stars, points, remaining, rows }),
+      };
     },
     exit() { go(`/p/${profile.id}`); },
     replay() {
+      // Belt and braces: the card hides the replay button when the
+      // allowance is gone, but never let a replay slip through anyway.
+      if (remainingToday(profile.id, game.meta.id) <= 0) return ctx.exit();
       teardown?.();
       clear(stage);
       clear(dots);
@@ -202,8 +226,11 @@ function render() {
   const profile = route.profileId ? getProfile(route.profileId) : null;
   if (!profile) return app.append(homeScreen());
 
+  // Out of plays for today? Bounce back to the shelf rather than starting
+  // a game whose result can't be counted (also blocks a bookmarked URL).
   const game = route.gameId ? getGame(route.gameId) : null;
-  app.append(game ? playScreen(profile, game) : shelfScreen(profile));
+  const playable = game && remainingToday(profile.id, game.meta.id) > 0;
+  app.append(playable ? playScreen(profile, game) : shelfScreen(profile));
 }
 
 window.addEventListener('hashchange', render);
