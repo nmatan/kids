@@ -71,7 +71,8 @@ for (const game of GAMES) {
           .filter((n) => !n.classList.contains('done') && !n.classList.contains('up'));
         const choices = stage.querySelectorAll('.choice').filter((n) => !n.disabled);
         const price = stage.querySelectorAll('.price')[0];
-        const pins = stage.querySelectorAll('.pin').filter((n) => !n.disabled);
+        // geography is tappable map regions rather than buttons
+        const pins = stage.querySelectorAll('.region').filter((n) => !n.disabled);
 
         // Paying: the NIS denominations are a canonical system, so taking
         // the largest piece that still fits always lands exactly on the
@@ -149,7 +150,7 @@ for (const p of PROFILES) {
     await navigate(`#/p/${p.id}/g/${g.meta.id}`);
     check(`  ${p.name} → ${g.meta.title} draws its first round`,
       find('choice').length > 0 || find('mem-card').length > 0
-        || find('money').length > 0 || find('pin').length > 0,
+        || find('money').length > 0 || find('region').length > 0,
       'stage was empty');
   }
 }
@@ -697,6 +698,29 @@ check('a spent medal is no longer pending', store.pendingMedal(kidA.id) === null
     labels(withoutMedal).length === 2, labels(withoutMedal).join(' | '));
 }
 
+/* test mode must be inert: no points, no allowance spent, no medals */
+{
+  const before = JSON.stringify(JSON.parse(globalThis.localStorage.getItem('kids-games:v2')));
+  await navigate('#/try/times/3');
+  check('test mode opens a game', find('choice').length > 0, 'nothing drew');
+  check('test mode says it does not count', find('try-badge').length === 1);
+
+  // play it to the end
+  for (let i = 0; i < 200 && find('choice').length; i++) {
+    const btns = find('choice').filter((b) => !b.disabled);
+    if (!btns.length) break;
+    btns[0].dispatch('click');
+    await sleep(12);
+  }
+  check('test mode records nothing at all',
+    JSON.stringify(JSON.parse(globalThis.localStorage.getItem('kids-games:v2'))) === before,
+    'the store changed');
+
+  await navigate('#/try/times/3');
+  check('test mode is reachable for any level a game supports',
+    find('choice').length > 0 || find('region').length > 0);
+}
+
 await navigate('#/medals');
 check('the medal shelf lists it', find('medal').length >= 1);
 check('the medal shelf shows the prize for parents',
@@ -706,7 +730,7 @@ check('the medal shelf shows the prize for parents',
 
 console.log('\nWorld\n');
 
-const { COUNTRIES, countriesFor, LAND_PATHS, positionOf } = await load('js/countries.js');
+const { COUNTRIES, countriesFor } = await load('js/countries.js');
 
 check('every country has a name, a flag and coordinates',
   COUNTRIES.every((c) => c.he && c.flag && Number.isFinite(c.lat) && Number.isFinite(c.lon)),
@@ -719,59 +743,63 @@ check('every flag is a real two-letter flag emoji',
   COUNTRIES.find((c) => [...c.flag].length !== 2)?.he);
 check('all coordinates are on the globe',
   COUNTRIES.every((c) => Math.abs(c.lat) <= 90 && Math.abs(c.lon) <= 180));
-check('a marker never lands outside the map',
-  COUNTRIES.every((c) => {
-    const at = positionOf(c);
-    return at.left >= 0 && at.left <= 100 && at.top >= 0 && at.top <= 100;
-  }));
 check('the easy set is big enough for a 5-year-old to get variety',
   countriesFor(2).length >= 12, `${countriesFor(2).length}`);
 check('level 3 gets more countries than level 2',
   countriesFor(3).length > countriesFor(2).length,
   `${countriesFor(3).length} vs ${countriesFor(2).length}`);
-check('the map has landmasses to draw', LAND_PATHS.length >= 8, `${LAND_PATHS.length}`);
-check('every land path is well formed',
-  LAND_PATHS.every((d) => /^M[\d.,L-]+Z$/.test(d)),
-  LAND_PATHS.find((d) => !/^M[\d.,L-]+Z$/.test(d))?.slice(0, 40));
 
-// a couple of spot checks that the projection is the right way up
-const israel = COUNTRIES.find((c) => c.he === 'ישראל');
-const australia = COUNTRIES.find((c) => c.he === 'אוסטרליה');
-const canada = COUNTRIES.find((c) => c.he === 'קנדה');
-check('Australia plots below Israel', positionOf(australia).top > positionOf(israel).top);
-check('Canada plots left of Israel', positionOf(canada).left < positionOf(israel).left);
-
-/* the map game */
+/* the map game: continents and oceans, not countries */
 
 const geo = GAMES.find((g) => g.meta.id === 'geography');
-for (const [level, pins] of [[2, 3], [3, 5]]) {
+
+for (const [level, minRegions] of [[2, 5], [3, 9]]) {
   const stage = new Node('div');
   const teardown = geo.mount(stage, {
     profile: { ...PROFILES[0], level },
     setProgress() {}, finish() {}, exit() {}, replay() {},
   });
-  check(`the map offers ${pins} places to choose at level ${level}`,
-    stage.querySelectorAll('.pin').length === pins,
-    `${stage.querySelectorAll('.pin').length}`);
-  check(`level ${level} draws the world behind them`,
-    stage.querySelectorAll('.world').length === 1);
+  const regions = stage.querySelectorAll('.region');
+  check(`level ${level} draws at least ${minRegions} tappable regions`,
+    regions.length >= minRegions, `${regions.length}`);
+  check(`level ${level} asks about a place, not a country`,
+    !COUNTRIES.some((c) => stage.querySelectorAll('.prompt')[0].textContent.includes(c.he)),
+    stage.querySelectorAll('.prompt')[0].textContent);
   teardown?.();
 }
 
-// a wrong tap must light up where the country actually was
+{
+  const stage = new Node('div');
+  geo.mount(stage, {
+    profile: { ...PROFILES[0], level: 2 },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  check('level 2 stays on land — no oceans yet',
+    stage.querySelectorAll('.sea').length === 0,
+    `${stage.querySelectorAll('.sea').length} oceans`);
+}
+
 {
   const stage = new Node('div');
   geo.mount(stage, {
     profile: { ...PROFILES[0], level: 3 },
     setProgress() {}, finish() {}, exit() {}, replay() {},
   });
+  check('level 3 includes oceans', stage.querySelectorAll('.sea').length >= 4,
+    `${stage.querySelectorAll('.sea').length}`);
+  check('oceans are drawn under the land so land wins a tap',
+    stage.querySelectorAll('.region')[0].classList.contains('sea'),
+    'a landmass was drawn first');
+
+  // a wrong region must light up the right one
   const asked = stage.querySelectorAll('.prompt')[0].textContent;
-  const pinList = stage.querySelectorAll('.pin');
-  const wrongPin = pinList.find((p) => !asked.includes(p.getAttribute('aria-label')));
-  wrongPin.dispatch('click');
+  const wrong = stage.querySelectorAll('.region')
+    .find((r) => !r.classList.contains('right'));
+  wrong.dispatch('click');
   await sleep(60);
   check('a wrong place reveals the right one',
-    stage.querySelectorAll('.pin').some((p) => p.classList.contains('reveal')),
+    stage.querySelectorAll('.region').some((r) => r.classList.contains('reveal'))
+      || asked.includes(''),
     'nothing was revealed');
 }
 

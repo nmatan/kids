@@ -1,11 +1,11 @@
 /* ---------------------------------------------------------------
-   countries.js — the country list behind דגלים and איפה בעולם.
+   countries.js — the country list behind דגלים.
 
-   `lat`/`lon` are the country's rough centre, used to place it on the
-   equirectangular map. `easy: true` marks the ones a 5-year-old has a
-   fair chance at, so level 2 draws only from those.
+   `easy: true` marks the ones a 5-year-old has a fair chance at, so
+   level 2 draws only from those. `lat`/`lon` are kept for any future
+   game that wants to put a country on a map.
 
-   ✏️ To add a country: one row here and it shows up in both games.
+   ✏️ To add a country: one row here.
    --------------------------------------------------------------- */
 
 export const COUNTRIES = [
@@ -55,70 +55,7 @@ export const COUNTRIES = [
 export const countriesFor = (level) =>
   (level >= 3 ? COUNTRIES : COUNTRIES.filter((c) => c.easy));
 
-/* ---------------------------------------------------------------
-   A very simplified world, drawn as equirectangular outlines.
-
-   The viewBox is literally the globe: x = lon + 180, y = 90 - lat,
-   so a country's marker position is the same arithmetic as its
-   coordinates. Shapes are deliberately coarse — they're context for
-   the markers, not an atlas.
-   --------------------------------------------------------------- */
-
-const LAND = {
-  northAmerica: [
-    [-168, 66], [-155, 71], [-130, 70], [-115, 69], [-100, 69], [-85, 70], [-80, 74],
-    [-65, 60], [-55, 50], [-65, 45], [-74, 40], [-81, 31], [-80, 25], [-84, 30],
-    [-94, 29], [-97, 26], [-92, 18], [-88, 21], [-83, 10], [-79, 9], [-85, 13],
-    [-95, 16], [-105, 20], [-114, 28], [-122, 37], [-124, 48], [-135, 57],
-    [-150, 59], [-163, 58],
-  ],
-  southAmerica: [
-    [-79, 9], [-72, 12], [-60, 10], [-52, 4], [-48, -1], [-35, -6], [-39, -15],
-    [-48, -25], [-54, -34], [-57, -38], [-62, -40], [-65, -45], [-68, -55],
-    [-75, -50], [-73, -40], [-71, -30], [-70, -18], [-77, -12], [-81, -5],
-    [-80, 0], [-77, 7],
-  ],
-  africa: [
-    [-17, 21], [-17, 15], [-13, 8], [-7, 4], [3, 6], [9, 4], [9, 2], [12, -5],
-    [12, -17], [15, -27], [18, -34], [28, -33], [33, -26], [40, -16], [41, -2],
-    [51, 12], [43, 12], [37, 22], [33, 31], [25, 32], [10, 34], [0, 36],
-    [-6, 36], [-10, 30],
-  ],
-  eurasia: [
-    [-9, 43], [-9, 37], [-6, 36], [0, 39], [3, 42], [7, 44], [14, 45], [19, 41],
-    [24, 38], [27, 41], [36, 36], [35, 33], [34, 31], [39, 21], [45, 13],
-    [53, 17], [57, 23], [60, 25], [67, 25], [72, 21], [77, 8], [81, 16],
-    [88, 21], [94, 16], [98, 8], [104, 1], [109, 11], [108, 21], [113, 22],
-    [121, 31], [122, 40], [127, 39], [131, 43], [135, 54], [141, 53], [155, 59],
-    [162, 60], [170, 66], [180, 66], [180, 72], [160, 71], [140, 73], [120, 74],
-    [100, 77], [80, 73], [70, 72], [60, 70], [50, 68], [40, 68], [32, 70],
-    [28, 71], [20, 70], [15, 68], [12, 65], [5, 62], [8, 58], [10, 55], [4, 52],
-    [2, 51], [-1, 49], [-4, 48], [-2, 44],
-  ],
-  britain: [[-5, 58], [-2, 58], [0, 54], [1, 52], [-1, 50], [-5, 50], [-6, 54], [-5, 56]],
-  ireland: [[-10, 54], [-6, 55], [-6, 52], [-9, 51], [-10, 53]],
-  greenland: [[-45, 60], [-20, 70], [-20, 82], [-45, 83], [-58, 82], [-55, 70], [-50, 62]],
-  australia: [
-    [113, -22], [114, -34], [118, -35], [129, -32], [137, -35], [141, -38],
-    [147, -38], [150, -35], [153, -28], [146, -19], [142, -11], [136, -12],
-    [130, -11], [126, -14], [121, -20],
-  ],
-  japan: [[130, 31], [135, 34], [140, 36], [142, 42], [145, 44], [141, 45], [136, 37], [131, 33]],
-  indonesia: [
-    [95, 5], [105, -6], [115, -8], [125, -8], [135, -4], [141, -3], [141, -9],
-    [130, -9], [120, -10], [110, -8], [100, 0],
-  ],
-  madagascar: [[43, -12], [50, -15], [47, -25], [44, -20]],
-  newZealand: [[172, -34], [178, -37], [174, -41], [170, -46], [166, -46], [172, -41]],
-};
-
-/** SVG path data for every landmass, in globe coordinates. */
-export const LAND_PATHS = Object.values(LAND).map(
-  (points) => `M${points.map(([lon, lat]) => `${lon + 180},${90 - lat}`).join('L')}Z`,
-);
-
-/** Where a country sits on the map, as percentages of width/height. */
-export const positionOf = (country) => ({
-  left: ((country.lon + 180) / 360) * 100,
-  top: ((90 - country.lat) / 180) * 100,
-});
+/* The map used to live here, for a country-finding game that didn't
+   work — see the note at the top of js/games/geography.js. Geography is
+   continents and oceans now, and owns its own shapes. This file is just
+   the country list behind דגלים. */

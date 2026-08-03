@@ -67,6 +67,10 @@ function parse() {
   if (parts[0] === 'leaders') return { screen: 'leaders' };
   if (parts[0] === 'settings') return { screen: 'settings' };
   if (parts[0] === 'medals') return { screen: 'medals' };
+  // Parent-only sandbox: any game, any level, nothing recorded.
+  if (parts[0] === 'try' && parts[1]) {
+    return { screen: 'try', gameId: parts[1], level: Number(parts[2]) || 2 };
+  }
   if (parts[0] === 'p' && parts[1]) {
     return {
       screen: 'profile',
@@ -417,6 +421,28 @@ function settingsScreen() {
     el('p', { class: 'set-hint pad', text: SET.gamesHint }),
     PROFILES.map((p) => gamesForKidBlock(p)),
 
+    el('h3', { class: 'set-section', text: SET.tryTitle }),
+    el('p', { class: 'set-hint pad', text: SET.tryHint }),
+    el('div', { class: 'try-list' },
+      GAMES.map((g) =>
+        el('div', { class: 'try-row' },
+          el('span', { class: 'try-name' }, `${g.meta.emoji} ${g.meta.title}`),
+          el('div', { class: 'grow' }),
+          // One button per level the game actually supports, so you can
+          // see the same game as each kid would get it.
+          el('div', { class: 'try-levels' },
+            g.meta.levels.map((lv) =>
+              el('button', {
+                class: 'btn small',
+                title: g.meta.scales?.[lv] || '',
+                onClick: () => { sfx.tap(); go(`/try/${g.meta.id}/${lv}`); },
+              }, `${SET.tryLevel} ${lv}`),
+            ),
+          ),
+        ),
+      ),
+    ),
+
     el('h3', { class: 'set-section', text: SET.feelSection }),
     row(SET.speech, null, toggle('speech')),
     row(SET.sound, null, toggle('sound')),
@@ -470,6 +496,67 @@ function dailyHud(profile, games) {
     el('div', { class: 'hud-line', text: standing }),
     el('div', { class: 'hud-line gold', text: medal }),
   );
+}
+
+/* ---------- test mode (parents only) ---------- */
+
+/**
+ * Play any game at any level without it counting for anything.
+ *
+ * The ctx handed to the game is deliberately inert: finish() records
+ * nothing and returns null, so no points are banked, no daily allowance
+ * is spent, no medal can be triggered and nothing reaches the
+ * leaderboard. That's the whole point — a way to see how a game behaves
+ * while building it, without polluting the kids' real scores.
+ *
+ * Reached only from the settings screen, so it's behind the parent gate.
+ */
+function tryScreen(game, level) {
+  const dots = el('div', { class: 'progress' });
+  const stage = el('div', { class: 'stage' });
+  // A stand-in profile: real enough for the game, tied to no real kid.
+  const profile = {
+    id: '__try__', name: SET.tryTitle, face: '🧪', gender: 'm', level,
+    theme: 'balls', colors: ['#6b7280', '#374151'],
+  };
+
+  const screen = el('div', { class: 'screen try-screen' },
+    el('div', { class: 'topbar' },
+      el('button', {
+        class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/settings'),
+      }, T.back),
+      el('div', { class: 'grow' },
+        el('h2', {}, `${game.meta.emoji} ${game.meta.title}`),
+        el('div', { class: 'set-hint', text: `${SET.tryLevel} ${level}` }),
+      ),
+      dots,
+    ),
+    el('div', { class: 'try-badge', text: SET.tryBadge }),
+    stage,
+  );
+
+  const ctx = {
+    profile,
+    setProgress(results, total) {
+      clear(dots);
+      for (let i = 0; i < total; i++) {
+        const state = i < results.length ? (results[i] ? 'hit' : 'miss') : '';
+        dots.append(el('i', { class: state }));
+      }
+    },
+    finish() { return null; },      // records nothing, so no reward card
+    onStreak() { burst(themeFor(profile).icons, 12); },
+    exit() { go('/settings'); },
+    replay() {
+      teardown?.();
+      clear(stage);
+      clear(dots);
+      teardown = game.mount(stage, ctx);
+    },
+  };
+
+  queueMicrotask(() => { teardown = game.mount(stage, ctx); });
+  return screen;
 }
 
 /* ---------- game shelf ---------- */
@@ -768,6 +855,13 @@ function render() {
   if (route.screen === 'leaders') return app.append(leadersScreen());
   if (route.screen === 'settings') return app.append(settingsScreen());
   if (route.screen === 'medals') return app.append(medalsScreen());
+  if (route.screen === 'try') {
+    const game = getGame(route.gameId);
+    // The gate protects it: without it, kids could farm risk-free practice
+    // — or just wander in and get confused by a level meant for a sibling.
+    if (!game || !unlocked) return app.append(settingsScreen());
+    return app.append(tryScreen(game, route.level));
+  }
 
   const profile = route.profileId ? getProfile(route.profileId) : null;
   if (!profile) return app.append(homeScreen());

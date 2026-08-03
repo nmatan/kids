@@ -250,6 +250,7 @@ speed bump, not security.
 | אפקטים קוליים | beeps and chimes |
 | קונפטי בסיום | the celebration burst |
 | השבוע מתחיל ביום | Sunday or Monday, drives the weekly board |
+| מצב בדיקה | play any game at any level without it counting — see below |
 | איפוס כל הניקוד | wipes all scores (two-tap confirm) |
 | החזרת הגדרות | back to defaults (two-tap confirm) |
 
@@ -257,6 +258,16 @@ Per-kid game selection starts as "whatever matches their level" and only becomes
 an explicit list once you touch it; **↺ חזרה לרמה** puts a kid back on automatic.
 The picker holds you to exactly five: a sixth chip refuses and shakes, so
 swapping a game means dropping one first. The counter turns red until it is 5/5.
+
+### Test mode
+
+The settings screen lists every game with a button per level it supports.
+Opening one plays it with an inert context: `finish()` records nothing, so no
+points are banked, no daily allowance is spent, no medal can fire and nothing
+reaches the leaderboard. A 🧪 banner sits on screen the whole time so there's no
+doubt. It's behind the parent gate, so the kids can't use it as risk-free
+practice. Useful for seeing how a game behaves — especially at a level none of
+your kids are currently on.
 
 **This is the dumping ground for future options.** To add one: a key in
 `DEFAULTS` in [js/settings.js](js/settings.js), and a `row(...)` in
@@ -294,19 +305,22 @@ doesn't score the point. Levels 2–3 show the right answer and move on.
 
 Most games read from a plain list at the top of their file — no logic to touch:
 
-- **מדינות, דגלים ומיקומים** → `COUNTRIES` in [js/countries.js](js/countries.js),
-  shared by **דגלים** and **איפה בעולם?**. One row per country with its Hebrew
-  name, flag and coordinates; `easy: true` marks the ones level 2 draws from.
-  Adding a country puts it in both games at once.
-
-  The map is a simplified world drawn as SVG outlines in the same file. The
-  projection is deliberately the plainest one there is — `x = lon + 180`,
-  `y = 90 - lat` — so a country's position on screen is literally its
-  coordinates, and the shapes are context for the markers rather than an atlas.
+- **מדינות ודגלים** → `COUNTRIES` in [js/countries.js](js/countries.js), behind
+  **דגלים**. One row per country with its Hebrew name and flag; `easy: true`
+  marks the ones level 2 draws from.
 
   > Flags are emoji. Android renders them properly, which is what matters — but
   > **Windows does not**, so on your PC you'll see `IL` instead of 🇮🇱. That's a
   > preview-only quirk; check that game on the tablet.
+
+- **יבשות ואוקיינוסים** → `REGIONS` in [js/games/geography.js](js/games/geography.js).
+  The game asks for continents and oceans rather than countries. The first
+  version asked for countries and didn't work: with no borders drawn there was
+  nothing to see, the markers were small, and a child tapped a dot without
+  understanding what they'd picked. Real borders need a full geographic dataset.
+  Continents and oceans solve it — huge, clearly-shaped, tappable, and the right
+  thing to learn first anyway. Oceans are plain lat/lon boxes drawn *under* the
+  land, so the part that stays visible is exactly the water.
 
 - **משפטי נכון/לא נכון** → `STATEMENTS` in [js/games/truefalse.js](js/games/truefalse.js).
   Each row is `{ s, t, why, lv }`. They're chosen to need judgement rather than
