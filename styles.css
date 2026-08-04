@@ -1300,3 +1300,86 @@ button {
   color: var(--gold);
   font-size: 16px;
 }
+
+/* ---------- change: the sum being worked out ---------- */
+
+.sum-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: clamp(26px, 5.5vw, 46px);
+}
+
+.sum-line .paid { color: var(--good); }
+.sum-line .cost { color: var(--bad); }
+.sum-line .minus { color: var(--ink-dim); }
+.sum-line .unknown { color: var(--gold); }
+
+/* ---------- reading comprehension ---------- */
+
+.passage {
+  font-size: clamp(21px, 3.8vw, 32px);
+  line-height: 1.55;
+  max-width: 26ch;
+  text-align: center;
+  padding: 20px 24px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.14);
+}
+
+.question {
+  font-size: clamp(19px, 3.4vw, 28px);
+  color: var(--gold);
+  text-align: center;
+  max-width: 26ch;
+}
+
+.choice.answer-choice {
+  font-size: clamp(18px, 3.2vw, 26px);
+  min-height: 66px;
+  padding: 14px 20px;
+  text-align: center;
+  line-height: 1.35;
+}
+
+/* ---------- probability jars ---------- */
+
+.jars { display: flex; gap: clamp(14px, 4vw, 40px); justify-content: center; flex-wrap: wrap; }
+
+.jar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 18px 12px;
+  border-radius: 22px 22px 30px 30px;
+  background: rgba(255, 255, 255, 0.09);
+  border: 3px solid rgba(255, 255, 255, 0.28);
+  min-width: 148px;
+}
+
+.jar-label { font-size: 24px; color: var(--gold); min-height: 26px; }
+
+.marbles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  max-width: 152px;
+  min-height: 84px;
+  align-content: center;
+}
+
+.marble {
+  width: clamp(24px, 5vw, 34px);
+  height: clamp(24px, 5vw, 34px);
+  border-radius: 50%;
+  display: block;
+  box-shadow: inset -3px -4px 6px rgba(0, 0, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+
+.marble.red { background: radial-gradient(circle at 34% 30%, #ff8a8a, #e03030); }
+.marble.blue { background: radial-gradient(circle at 34% 30%, #8ec4ff, #2f6fd0); }
+
+.jar-count { font-size: 15px; font-weight: 700; color: var(--ink-dim); }

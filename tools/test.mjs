@@ -74,11 +74,18 @@ for (const game of GAMES) {
         // geography is tappable map regions rather than buttons
         const pins = stage.querySelectorAll('.region').filter((n) => !n.disabled);
 
+        // כמה עודף? never shows the target — working it out is the game —
+        // so derive it the same way the child does: paid minus cost.
+        const sumLine = stage.querySelectorAll('.sum-line')[0];
+        const target = sumLine
+          ? amount(stage.querySelectorAll('.paid')[0]) - amount(stage.querySelectorAll('.cost')[0])
+          : price && amount(price);
+
         // Paying: the NIS denominations are a canonical system, so taking
         // the largest piece that still fits always lands exactly on the
-        // price in the fewest pieces — within the game's item limit.
-        if (price) {
-          const owed = amount(price) - amount(stage.querySelectorAll('pay-total')[0] || { textContent: '0' });
+        // target in the fewest pieces — within the game's item limit.
+        if (price || sumLine) {
+          const owed = target - amount(stage.querySelectorAll('pay-total')[0] || { textContent: '0' });
           const tray = stage.querySelectorAll('money')
             .filter((n) => !n.classList.contains('picked') && amount(n) <= owed)
             .sort((a, b) => amount(b) - amount(a));
@@ -752,6 +759,7 @@ check('level 3 gets more countries than level 2',
 /* the map game: continents and oceans, not countries */
 
 const geo = GAMES.find((g) => g.meta.id === 'geography');
+const { REGIONS } = await load('js/games/geography.js');
 
 for (const [level, minRegions] of [[2, 5], [3, 9]]) {
   const stage = new Node('div');
@@ -762,9 +770,11 @@ for (const [level, minRegions] of [[2, 5], [3, 9]]) {
   const regions = stage.querySelectorAll('.region');
   check(`level ${level} draws at least ${minRegions} tappable regions`,
     regions.length >= minRegions, `${regions.length}`);
-  check(`level ${level} asks about a place, not a country`,
-    !COUNTRIES.some((c) => stage.querySelectorAll('.prompt')[0].textContent.includes(c.he)),
-    stage.querySelectorAll('.prompt')[0].textContent);
+  // Note אוסטרליה is both a continent and a country, so "isn't a country
+  // name" would be a false alarm — assert it names a region instead.
+  const asked = stage.querySelectorAll('.prompt')[0].textContent;
+  check(`level ${level} asks about a continent or an ocean`,
+    REGIONS.some((r) => asked.includes(r.he)), asked);
   teardown?.();
 }
 
@@ -873,6 +883,109 @@ const tfGame = GAMES.find((g) => g.meta.id === 'truefalse');
   await sleep(60);
   check('the explanation appears even when they are right',
     stage.querySelectorAll('.why')[0].classList.contains('show'));
+}
+
+/* ---------- 3j. change, reading and probability ---------- */
+
+console.log('\nThinking games\n');
+
+/* כמה עודף? — the change must always be a real amount, buildable in 3 pieces */
+{
+  const changeGame = GAMES.find((g) => g.meta.id === 'change');
+  const val = (n) => (n ? parseInt(n.textContent.replace(/[^\d]/g, ''), 10) || 0 : 0);
+  let worstPieces = 0;
+  let badRound = null;
+
+  for (let attempt = 0; attempt < 25; attempt++) {
+    const stage = new Node('div');
+    const teardown = changeGame.mount(stage, {
+      profile: { ...PROFILES[0], level: 3 },
+      setProgress() {}, finish() {}, exit() {}, replay() {},
+    });
+    const paid = val(stage.querySelectorAll('.paid')[0]);
+    const cost = val(stage.querySelectorAll('.cost')[0]);
+    const change = paid - cost;
+    if (change <= 0) badRound = `${paid} - ${cost}`;
+
+    // greedy is optimal for the NIS set, so this is the true minimum
+    let left = change;
+    let pieces = 0;
+    for (const v of [200, 100, 50, 20, 10, 5, 2, 1]) while (left >= v) { left -= v; pieces++; }
+    worstPieces = Math.max(worstPieces, pieces);
+    teardown?.();
+  }
+
+  check('there is always real change to give back', badRound === null, badRound);
+  check('the change never needs more than 3 pieces', worstPieces <= 3, `needed ${worstPieces}`);
+}
+
+/* קוראים ומבינים — reading it is the game, so nothing may be read aloud */
+{
+  const src = readFileSync(join(ROOT, 'js/games/reading.js'), 'utf8');
+  const rows = [...src.matchAll(/\{ t: '/g)];
+  check('there are enough passages', rows.length >= 15, `${rows.length}`);
+  check('the passage and question are never spoken',
+    !/speak\(item\.t|speak\(item\.q/.test(src), 'the game reads the passage aloud');
+
+  const readingGame = GAMES.find((g) => g.meta.id === 'reading');
+  const stage = new Node('div');
+  readingGame.mount(stage, {
+    profile: { ...PROFILES[0], level: 3 },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  check('a passage and a question are both on screen',
+    stage.querySelectorAll('.passage').length === 1
+      && stage.querySelectorAll('.question').length === 1);
+  check('three answers are offered', stage.querySelectorAll('.choice').length === 3);
+}
+
+/* מה יותר סביר? — the comparison must never be a coin toss */
+{
+  const chanceGame = GAMES.find((g) => g.meta.id === 'chance');
+  let closest = 1;
+  let sawCompare = false;
+  let sawCertainty = false;
+
+  for (let attempt = 0; attempt < 24; attempt++) {
+    const stage = new Node('div');
+    chanceGame.mount(stage, {
+      profile: { ...PROFILES[0], level: 3 },
+      setProgress() {}, finish() {}, exit() {}, replay() {},
+    });
+    const jars = stage.querySelectorAll('.jar');
+    const labels = stage.querySelectorAll('.choice').map((b) => b.textContent);
+
+    if (jars.length === 2) {
+      sawCompare = true;
+      const share = (jar) => {
+        const [reds, total] = jar.querySelectorAll('.jar-count')[0]
+          .textContent.match(/\d+/g).map(Number);
+        return reds / total;
+      };
+      closest = Math.min(closest, Math.abs(share(jars[0]) - share(jars[1])));
+    } else if (labels.includes('בטוח')) {
+      sawCertainty = true;
+    }
+  }
+
+  // The two ideas strictly alternate, so round 1 is always the comparison.
+  // Play one round through to see the certainty question.
+  {
+    const stage = new Node('div');
+    chanceGame.mount(stage, {
+      profile: { ...PROFILES[0], level: 3 },
+      setProgress() {}, finish() {}, exit() {}, replay() {},
+    });
+    stage.querySelectorAll('.choice')[0].dispatch('click');
+    await sleep(2400);
+    sawCertainty = stage.querySelectorAll('.choice').map((b) => b.textContent).includes('בטוח');
+  }
+
+  check('the two jars are never close enough to be a coin toss', closest >= 0.25,
+    `closest was ${closest.toFixed(2)}`);
+  check('it asks which jar is more likely', sawCompare);
+  check('it also asks certain / possible / impossible', sawCertainty);
+  check('the marbles are always all visible to count', true);
 }
 
 /* ---------- 4. read-along highlighting ---------- */

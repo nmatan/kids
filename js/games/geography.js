@@ -32,7 +32,7 @@ export const meta = {
    that stays visible is the water — no need to trace real coastlines. */
 const SEA = (w, e, s, n) => [[[w, n], [e, n], [e, s], [w, s]]];
 
-const REGIONS = [
+export const REGIONS = [
   // ---------- יבשות ----------
   { id: 'africa', he: 'אפריקה', kind: 'land', lv: 2, parts: [[
     [-17, 21], [-17, 15], [-13, 8], [-7, 4], [3, 6], [9, 4], [9, 2], [12, -5],

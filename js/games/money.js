@@ -19,8 +19,9 @@ export const meta = {
 };
 
 /* Real circulating NIS. `size` is roughly proportional to the real thing,
-   so the physical pecking order matches what's in their hand. */
-const MONEY = [
+   so the physical pecking order matches what's in their hand.
+   Exported so כמה עודף? uses the same coins rather than its own copy. */
+export const MONEY = [
   { v: 1, label: '1', kind: 'coin', cls: 'silver', w: 58 },
   { v: 2, label: '2', kind: 'coin', cls: 'silver', w: 68 },
   { v: 5, label: '5', kind: 'coin', cls: 'silver dodeca', w: 76 },
@@ -31,7 +32,7 @@ const MONEY = [
   { v: 200, label: '200', kind: 'note n200', w: 128, h: 72 },
 ];
 
-const byValue = (v) => MONEY.find((m) => m.v === v);
+export const byValue = (v) => MONEY.find((m) => m.v === v);
 
 /* Something to buy, priced roughly like the real thing. */
 const SHOP = {
@@ -43,9 +44,9 @@ const SHOP = {
 const shopFor = (price) => pick(price < 20 ? SHOP.cheap : price < 100 ? SHOP.mid : SHOP.pricey);
 
 /** How an Israeli says the amount out loud. */
-const shekels = (n) => (n === 1 ? 'שקל אחד' : n === 2 ? 'שני שקלים' : `${n} שקלים`);
+export const shekels = (n) => (n === 1 ? 'שקל אחד' : n === 2 ? 'שני שקלים' : `${n} שקלים`);
 
-function moneyNode(m, extra = '') {
+export function moneyNode(m, extra = '') {
   return el('button', {
     class: `money ${m.kind} ${m.cls || ''} ${extra}`.trim(),
     style: {

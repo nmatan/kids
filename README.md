@@ -286,9 +286,9 @@ settings screen — that overrides the level for that kid only.
 
 | kid | age | level | starting five |
 |-----|-----|-------|------------------------|
-| אביתר | 7 | 3 | לוח הכפל · מרכיבים מילה · מה זה אומר? · איפה בעולם? · נכון או לא? |
-| אמיתי | 5 | 2 | אותיות · חיבור וחיסור · לשלם בחנות · דגלים · נכון או לא? |
-| עברי  | 2 | 1 | חברים מהחווה · צבעים · סופרים ביחד · צורות · זיכרון |
+| אביתר | 7 | 3 | pool of 12, five drawn daily |
+| אמיתי | 5 | 2 | pool of 8, five drawn daily |
+| עברי  | 2 | 1 | pool of 5 — all five, no rotation yet |
 
 Levels 2 and 3 have **eight** games available but only five slots, so there is a
 bench to rotate from — swap them in the settings screen when a shelf goes stale.
@@ -338,6 +338,27 @@ Most games read from a plain list at the top of their file — no logic to touch
   notes. Agorot (10 אג׳ and ½ ₪) are left out on purpose — they'd force decimal
   prices, which is a later step. The coins are drawn in CSS, including the
   twelve-sided ₪5 and the bi-metallic ₪10, so there are still no image files.
+- **קטעי קריאה** → `PASSAGES` in [js/games/reading.js](js/games/reading.js).
+  Two-sentence passages with a comprehension question. **Nothing here is read
+  aloud, deliberately** — every other game speaks its prompt, but reading it is
+  the whole point of this one, and narration would turn it into a listening
+  game. Only the feedback after an answer is spoken. Questions ask "why" and
+  "what happened" rather than just where a word appears, and several answers
+  aren't copyable from the text.
+
+- **כמה עודף?** → [js/games/change.js](js/games/change.js). The natural sequel to
+  לשלם בחנות: something costs 37₪, you hand over 50₪, build the change. It shares
+  money.js's coins so a ₪5 looks the same in both. Price and payment are drawn
+  until the change is buildable in 3 pieces or fewer — enforced by `npm test`.
+
+- **מה יותר סביר?** → [js/games/chance.js](js/games/chance.js). Probability without
+  fractions or percentages, the way it's actually taught at this age: two jars of
+  countable marbles ("which is more likely to give a red one?"), alternating with
+  certainty language ("בטוח / אפשרי / בלתי אפשרי"). Every marble is visible so it's
+  counting and reasoning, never guessing, and the two jars are never closer than
+  25 percentage points apart — a close call isn't a fair question at seven, and an
+  equal one has no right answer at all. Tested.
+
 - **מילים לכתיב** → `WORDS` in [js/games/spelling.js](js/games/spelling.js).
   Drop in this week's list from school.
 - **לוחות כפל** → `TABLES` in [js/games/times.js](js/games/times.js).
