@@ -3,7 +3,9 @@
 
    Routes live in the URL hash so the tablet's Back gesture walks back
    through the app instead of closing it:
-     #/                 בחירת ילד
+     #/                 מסך פתיחה — תחרות אחים או חתחתול
+     #/kids             בחירת ילד
+     #/cabo             חתחתול נגד המחשב
      #/leaders          טבלת המובילים
      #/settings         הגדרות (מאחורי שאלה להורים)
      #/p/:profileId     מדף המשחקים של הילד
@@ -25,9 +27,10 @@ import {
 } from './kit.js';
 import * as settings from './settings.js';
 import {
-  T, SET, LANG, REWARD, MEDAL, PRIZES, cheerLine, hudLines, gateQuestion,
+  T, SET, LANG, REWARD, MEDAL, PRIZES, PORTAL, CABO, cheerLine, hudLines, gateQuestion,
 } from './text.js';
 import { themeFor } from './themes.js';
+import { mountCabo } from './cabo.js';
 
 setSpeechLang(LANG);
 
@@ -64,6 +67,8 @@ function backdrop(theme) {
 
 function parse() {
   const parts = location.hash.replace(/^#\/?/, '').split('/').filter(Boolean);
+  if (parts[0] === 'kids') return { screen: 'kids' };
+  if (parts[0] === 'cabo') return { screen: 'cabo' };
   if (parts[0] === 'leaders') return { screen: 'leaders' };
   if (parts[0] === 'settings') return { screen: 'settings' };
   if (parts[0] === 'medals') return { screen: 'medals' };
@@ -79,7 +84,65 @@ function parse() {
       wheel: parts[2] === 'wheel',
     };
   }
-  return { screen: 'home' };
+  return { screen: 'portal' };
+}
+
+/* ---------- the opening portal ---------- */
+
+/**
+ * Two apps live here now, so the first screen just asks which. Keeping
+ * them behind one shell means one service worker, one settings screen
+ * and one install on the tablet.
+ */
+function portalScreen() {
+  return el('div', { class: 'screen portal' },
+    el('div', { class: 'topbar' },
+      el('div', { class: 'grow' },
+        el('h1', { text: T.appName }),
+        el('p', { class: 'subtitle', text: PORTAL.pick }),
+      ),
+      el('button', {
+        class: 'btn round subtle',
+        'aria-label': SET.title,
+        onClick: () => { sfx.tap(); go('/settings'); },
+      }, '⚙'),
+    ),
+    el('div', { class: 'portal-choices' },
+      el('button', {
+        class: 'portal-card contest',
+        onClick: () => { sfx.tap(); speak(PORTAL.contest); go('/kids'); },
+      },
+        el('div', { class: 'portal-emoji' }, '🏆'),
+        el('div', { class: 'portal-name' }, PORTAL.contest),
+        el('div', { class: 'portal-hint' }, PORTAL.contestHint),
+      ),
+      el('button', {
+        class: 'portal-card cabo',
+        onClick: () => { sfx.tap(); speak(PORTAL.cabo); go('/cabo'); },
+      },
+        el('div', { class: 'portal-emoji' }, '🐱'),
+        el('div', { class: 'portal-name' }, PORTAL.cabo),
+        el('div', { class: 'portal-hint' }, PORTAL.caboHint),
+      ),
+    ),
+    hasVoice(LANG) ? null : el('p', { class: 'warn', text: T.ttsMissing }),
+  );
+}
+
+/* ---------- חתחתול ---------- */
+
+function caboScreen() {
+  const room = el('div', { class: 'cabo-room' });
+  const screen = el('div', { class: 'screen cabo-screen' },
+    el('div', { class: 'topbar' },
+      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
+      el('div', { class: 'grow' }, el('h2', {}, `🐱 ${CABO.title}`)),
+    ),
+    room,
+  );
+  // Same teardown slot as the kids' games, so leaving always stops the voice.
+  queueMicrotask(() => { teardown = mountCabo(room, { onExit: () => go('/') }); });
+  return screen;
 }
 
 /* ---------- home ---------- */
@@ -87,8 +150,9 @@ function parse() {
 function homeScreen() {
   return el('div', { class: 'screen' },
     el('div', { class: 'topbar' },
+      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
       el('div', { class: 'grow' },
-        el('h1', { text: T.appName }),
+        el('h1', { text: PORTAL.contest }),
         el('p', { class: 'subtitle', text: T.whoPlays }),
       ),
       el('button', {
@@ -158,7 +222,7 @@ function leadersScreen() {
 
   return el('div', { class: 'screen board-screen' },
     el('div', { class: 'topbar' },
-      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
+      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/kids') }, T.back),
       el('div', { class: 'grow' }, el('h2', {}, `🏆 ${T.leaderboard}`)),
     ),
     el('div', { class: 'tabs' },
@@ -252,7 +316,7 @@ function gateScreen() {
 
   return el('div', { class: 'screen' },
     el('div', { class: 'topbar' },
-      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
+      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/kids') }, T.back),
       el('div', { class: 'grow' }, el('h2', {}, `🔒 ${SET.gate}`)),
     ),
     el('div', { class: 'stage' },
@@ -443,6 +507,9 @@ function settingsScreen() {
       ),
     ),
 
+    el('h3', { class: 'set-section', text: SET.caboSection }),
+    row(SET.caboHints, SET.caboHintsHint, toggle('caboHints')),
+
     el('h3', { class: 'set-section', text: SET.feelSection }),
     row(SET.speech, null, toggle('speech')),
     row(SET.sound, null, toggle('sound')),
@@ -572,7 +639,7 @@ function shelfScreen(profile) {
   return el('div', { class: 'screen themed', style: themeVars(theme) },
     backdrop(theme),
     el('div', { class: 'topbar' },
-      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
+      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/kids') }, T.back),
       el('div', { class: 'grow' },
         el('h2', {}, `${theme.badge} ${theme.space(profile.name)}`),
       ),
@@ -813,7 +880,7 @@ function wheelScreen(profile) {
 function medalsScreen() {
   return el('div', { class: 'screen' },
     el('div', { class: 'topbar' },
-      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/') }, T.back),
+      el('button', { class: 'btn round', 'aria-label': 'חזרה', onClick: () => go('/kids') }, T.back),
       el('div', { class: 'grow' }, el('h2', {}, `🎖 ${MEDAL.title}`)),
     ),
     el('p', { class: 'set-hint pad', text: MEDAL.rule }),
@@ -852,6 +919,9 @@ function render() {
   clear(app);
 
   const route = parse();
+  if (route.screen === 'portal') return app.append(portalScreen());
+  if (route.screen === 'cabo') return app.append(caboScreen());
+  if (route.screen === 'kids') return app.append(homeScreen());
   if (route.screen === 'leaders') return app.append(leadersScreen());
   if (route.screen === 'settings') return app.append(settingsScreen());
   if (route.screen === 'medals') return app.append(medalsScreen());

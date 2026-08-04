@@ -1,7 +1,15 @@
 # משחקי לימוד — Learning Games
 
-Custom Hebrew learning games for אביתר, אמיתי and עברי, installable on an
-Android tablet.
+Custom Hebrew games for אביתר, אמיתי and עברי, installable on an Android tablet.
+
+Two apps behind one opening screen:
+
+- **🏆 תחרות אחים** — the learning games, with points, a daily allowance,
+  medals and a scoreboard the three of them compete on.
+- **🐱 חתחתול** — a card game against the computer, narrated step by step.
+
+They share one shell deliberately: one service worker, one settings screen, one
+install on the tablet.
 
 It's a plain web app — no framework, no build step, **no npm dependencies**.
 That's deliberate: this project should still run in five years without a
@@ -229,6 +237,46 @@ The wheel redraws itself for however many prizes are in the list.
 won, with its date and the prize that came with it, so there's a record of
 what's been promised. A medal spun but not yet claimed shows as 🎁 on their
 profile card and as a banner on their shelf, so an interrupted spin isn't lost.
+
+---
+
+## 🐱 חתחתול
+
+Cabo, at a size a seven-year-old can hold. Four face-down cards each, values
+**0–9 only** — no jacks or kings — so the count at the end is one he can
+actually do. Lowest total wins.
+
+On your turn: draw from the deck or take the top discard, then either swap it
+into your hand or throw it away. Instead of a turn you can call **חתחתול!**, which
+gives the computer one last turn before everything is revealed.
+
+**Every step is narrated.** Not just "your turn" but what the options are —
+*"משכתם 3. אפשר להחליף אותו באחד הקלפים שלכם, או לזרוק אותו."* The child is never
+looking at a board wondering what to do.
+
+**Two deliberate simplifications**, both written up in
+[js/cabo.js](js/cabo.js):
+
+1. A card you peeked at **stays visible to you**. Real Cabo makes you remember;
+   that turns it into a memory game. Keeping them visible makes it a decisions
+   game — and it's also what lets the app know when a move is a mistake.
+2. **No special-power cards.** They'd double the length of every explanation,
+   and every explanation is spoken aloud.
+
+### The "are you sure?" guard
+
+If he's about to swap a card he *knows* is low for a higher one, or throw away a
+card of 3 or less, it asks first — *"רגע! הקלף שלכם הוא 2, והקלף החדש הוא 7 —
+גבוה יותר. בטוחים?"* He can always insist; it's teaching, not blocking.
+
+Settings → **חתחתול** → **אזהרה על מהלך גרוע** turns it off completely.
+
+### The reveal
+
+Cards turn over **one at a time**, with the running total spoken as it grows —
+*"שלוש... ועוד חמש, זה שמונה..."*. That's the counting practice, and it's also
+what makes the ending suspenseful rather than a number appearing. A drum roll
+starts it, and the deck pulses when it's running low during play.
 
 ---
 

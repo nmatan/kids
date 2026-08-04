@@ -149,8 +149,12 @@ const playing = () => find('choice').length > 0 || find('mem-card').length > 0
   || find('money').length > 0 || find('region').length > 0;
 
 await navigate('#/');
-check(`home lists all ${PROFILES.length} kids`, find('profile').length === PROFILES.length,
-  `got ${find('profile').length}`);
+check('the portal offers both apps', find('portal-card').length === 2,
+  `got ${find('portal-card').length}`);
+
+await navigate('#/kids');
+check(`the kids' app lists all ${PROFILES.length} kids`,
+  find('profile').length === PROFILES.length, `got ${find('profile').length}`);
 check('home shows every kid by name', PROFILES.every((p) => appRoot.textContent.includes(p.name)));
 
 for (const p of PROFILES) {
@@ -167,7 +171,7 @@ for (const p of PROFILES) {
 }
 
 await navigate('#/p/does-not-exist');
-check('unknown profile falls back to home', find('profile').length === PROFILES.length);
+check('unknown profile falls back to the kids list', find('profile').length === PROFILES.length);
 await navigate(`#/p/${PROFILES[0].id}/g/does-not-exist`);
 check('unknown game falls back to the shelf', find('game-card').length > 0);
 
@@ -1055,6 +1059,164 @@ console.log('\nThinking games\n');
     second && rows.some((r) => second.startsWith(r.he)), second?.slice(0, 20));
   check('each language is spoken with its own voice',
     /lang: shownLang/.test(src) && /lang: 'en'/.test(src));
+}
+
+/* ---------- 3k. חתחתול ---------- */
+
+console.log('\nחתחתול\n');
+
+{
+  const { mountCabo } = await load('js/cabo.js');
+  cfg.resetSettings();
+
+  const open = () => {
+    const room = new Node('div');
+    const stop = mountCabo(room, { onExit() {} });
+    return { room, stop };
+  };
+
+  const cards = (room) => room.querySelectorAll('.card');
+  const faceUp = (room) => cards(room).filter((c) => c.classList.contains('up'));
+  const banner = (room) => room.querySelectorAll('.cabo-banner')[0].textContent;
+
+  // --- the deal ---
+  {
+    const { room, stop } = open();
+    check('both hands are dealt face down',
+      cards(room).filter((c) => c.classList.contains('down')).length >= 8,
+      `${cards(room).filter((c) => c.classList.contains('down')).length}`);
+    check('the game explains itself before anything else',
+      banner(room).includes('חתחתול') && banner(room).includes('הציצו'), banner(room));
+    stop();
+  }
+
+  // --- the opening peek: exactly two, then the turn starts ---
+  {
+    const { room, stop } = open();
+    const mine = cards(room).filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'));
+    check('you have four cards', mine.length === 4, `${mine.length}`);
+
+    mine[0].dispatch('click');
+    await sleep(20);
+    check('one peek asks for a second', banner(room).includes('עוד קלף'), banner(room));
+
+    room.querySelectorAll('.card')
+      .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
+      .filter((c) => !c.classList.contains('up'))[0].dispatch('click');
+    await sleep(20);
+    check('after two peeks it is your turn', banner(room).includes('התור שלכם'), banner(room));
+    check('exactly two of your cards are visible',
+      room.querySelectorAll('.card')
+        .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
+        .filter((c) => c.classList.contains('up')).length === 2);
+    stop();
+  }
+
+  /** Deal, peek twice, and draw — the state most checks care about. */
+  const toDrawn = async () => {
+    const { room, stop } = open();
+    for (let i = 0; i < 2; i++) {
+      room.querySelectorAll('.card')
+        .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
+        .filter((c) => !c.classList.contains('up'))[0].dispatch('click');
+      await sleep(20);
+    }
+    room.querySelectorAll('.card').find((c) => c.classList.contains('deck')).dispatch('click');
+    await sleep(30);
+    return { room, stop };
+  };
+
+  {
+    const { room, stop } = await toDrawn();
+    check('drawing tells you what you got and what you can do',
+      banner(room).includes('משכתם') && banner(room).includes('להחליף'), banner(room));
+    check('the drawn card is face up', room.querySelectorAll('.drawn').length === 1);
+    check('there is a way to throw it away',
+      room.querySelectorAll('.btn').some((b) => b.textContent.includes('לזרוק')));
+    stop();
+  }
+
+  // --- the "are you sure?" guard ---
+  {
+    // Find a deal where a peeked card is lower than the drawn card, which
+    // is the exact situation the guard exists for.
+    let guarded = false;
+    let refusedWithHintsOff = false;
+
+    for (let attempt = 0; attempt < 40 && !guarded; attempt++) {
+      const { room, stop } = await toDrawn();
+      const drawn = Number(room.querySelectorAll('.drawn')[0].textContent);
+      const seen = room.querySelectorAll('.card')
+        .filter((c) => c.classList.contains('seen'));
+      const worse = seen.find((c) => Number(c.textContent) < drawn);
+      if (worse) {
+        worse.dispatch('click');
+        await sleep(40);
+        guarded = banner(room).includes('בטוחים');
+      }
+      stop();
+    }
+    check('swapping a known-low card for a higher one asks first', guarded,
+      'the guard never fired');
+
+    // ...and stays quiet when the parent turns it off
+    cfg.set('caboHints', false);
+    for (let attempt = 0; attempt < 40 && !refusedWithHintsOff; attempt++) {
+      const { room, stop } = await toDrawn();
+      const drawn = Number(room.querySelectorAll('.drawn')[0].textContent);
+      const worse = room.querySelectorAll('.card')
+        .filter((c) => c.classList.contains('seen'))
+        .find((c) => Number(c.textContent) < drawn);
+      if (worse) {
+        worse.dispatch('click');
+        await sleep(40);
+        // no question — the swap just happened
+        refusedWithHintsOff = !banner(room).includes('בטוחים');
+      }
+      stop();
+    }
+    check('turning the hints off makes it stop asking', refusedWithHintsOff);
+    cfg.resetSettings();
+  }
+
+  // --- calling חתחתול leads to a reveal that counts ---
+  {
+    const { room, stop } = open();
+    for (let i = 0; i < 2; i++) {
+      room.querySelectorAll('.card')
+        .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
+        .filter((c) => !c.classList.contains('up'))[0].dispatch('click');
+      await sleep(20);
+    }
+    const callBtn = room.querySelectorAll('.btn').find((b) => b.textContent.includes('חתחתול'));
+    check('you can call חתחתול on your turn', Boolean(callBtn));
+    callBtn.dispatch('click');
+    await sleep(60);
+    check('calling is announced', banner(room).includes('הכרזתם'), banner(room));
+
+    // let the computer take its last turn and the reveal run through
+    let counted = false;
+    for (let waited = 0; waited < 40000 && !counted; waited += 250) {
+      await sleep(250);
+      if (/סך הכל/.test(banner(room))) counted = true;
+    }
+    check('the reveal counts out loud, card by card', counted, banner(room));
+
+    let finished = false;
+    for (let waited = 0; waited < 40000 && !finished; waited += 250) {
+      await sleep(250);
+      finished = /ניצחתם|המחשב ניצח|תיקו/.test(banner(room));
+    }
+    check('a winner is announced at the end', finished, banner(room));
+    // .card also covers the deck and discard piles, so count the eight
+    // hand cards that were actually turned over.
+    const revealed = room.querySelectorAll('.revealed');
+    check('all eight hand cards end up face up', revealed.length === 8,
+      `${revealed.length} of 8`);
+    check('you can start another game',
+      room.querySelectorAll('.btn').some((b) => b.textContent.includes('עוד משחק')));
+    stop();
+  }
 }
 
 /* ---------- 4. read-along highlighting ---------- */

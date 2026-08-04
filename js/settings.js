@@ -25,6 +25,10 @@ export const DEFAULTS = {
   /** Questions per game. 0 = whatever each game asks for by default. */
   rounds: 0,
 
+  /** חתחתול: ask "are you sure?" before an obviously bad move. Teaching,
+      not blocking — the child can always insist. Off means silence. */
+  caboHints: true,
+
   speech: true,    // spoken prompts and the end-of-game cheer
   sound: true,     // beeps and chimes
   confetti: true,  // the celebration burst

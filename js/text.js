@@ -150,6 +150,70 @@ export function gateQuestion() {
   return { text: `כמה זה ${pct}% מ-${base}?`, answer: (base * pct) / 100 };
 }
 
+/* ---------------------------------------------------------------
+   חתחתול — every line the game says out loud. Each one is a single
+   step, phrased as an instruction, because the child is being told
+   what is happening and what to do next.
+   --------------------------------------------------------------- */
+
+export const CABO = {
+  title: 'חתחתול',
+  tagline: 'משחק קלפים נגד המחשב',
+  you: 'אתה',
+  computer: 'המחשב',
+  deck: 'חפיסה',
+  discard: 'ערמה',
+  inHand: 'ביד',
+  yourCard: 'הקלף שלך',
+
+  intro: 'ברוכים הבאים לחתחתול! לכל אחד ארבעה קלפים הפוכים. מי שהסכום שלו נמוך יותר מנצח. עכשיו הציצו בשניים מהקלפים שלכם.',
+  peekOneMore: 'יופי. עכשיו הציצו בעוד קלף אחד.',
+  peekDone: 'מצוין! עכשיו התור שלכם. משכו קלף מהחפיסה, או קחו את הקלף מהערמה.',
+  yourTurn: 'התור שלכם. משכו קלף מהחפיסה, או קחו מהערמה.',
+  drew: (v) => `משכתם ${v}. אפשר להחליף אותו באחד הקלפים שלכם, או לזרוק אותו.`,
+  chooseCard: 'בחרו קלף להחליף, או זרקו.',
+  pickAnother: 'בסדר, בחרו קלף אחר.',
+  swapped: 'החלפתם. הקלף הישן הלך לערמה.',
+  threwAway: 'זרקתם את הקלף.',
+  throwAway: '🗑 לזרוק',
+
+  // the "are you sure?" guard
+  sureSwap: (mine, drawn) =>
+    `רגע! הקלף שלכם הוא ${mine}, והקלף החדש הוא ${drawn} — גבוה יותר. בטוחים?`,
+  sureThrow: (v) => `רגע! ${v} זה קלף נמוך וטוב. בטוחים שרוצים לזרוק אותו?`,
+  yesSure: 'כן, בטוח',
+  noBack: 'לא, אחזור',
+
+  cpuThinking: 'תור המחשב...',
+  cpuDrew: 'המחשב משך קלף מהחפיסה.',
+  cpuTookDiscard: 'המחשב לקח את הקלף מהערמה!',
+  cpuSwapped: 'המחשב החליף אחד מהקלפים שלו.',
+  cpuThrew: 'המחשב זרק את הקלף.',
+
+  call: '🐱 חתחתול!',
+  youCalled: 'הכרזתם חתחתול! למחשב יש עוד תור אחד אחרון.',
+  cpuCalled: 'המחשב הכריז חתחתול! יש לכם תור אחד אחרון.',
+  lastTurn: 'התור האחרון שלכם. תבחרו טוב!',
+
+  revealNow: 'וזהו! עכשיו חושפים את הקלפים וסופרים...',
+  counting: (who) => `סופרים את הקלפים של ${who}`,
+  runningTotal: (n) => `סך הכל ${n}`,
+  youWon: (mine, theirs) => `${mine} מול ${theirs} — ניצחתם! הסכום שלכם נמוך יותר. כל הכבוד!`,
+  cpuWon: (theirs, mine) => `${theirs} מול ${mine} — המחשב ניצח הפעם. בפעם הבאה תנצחו!`,
+  tie: (n) => `תיקו! לשניכם ${n}. איזה משחק צמוד!`,
+  again: '↻ עוד משחק',
+  leave: 'חזרה',
+};
+
+/* The opening portal: which of the two apps to enter. */
+export const PORTAL = {
+  pick: 'במה משחקים היום?',
+  contest: 'תחרות אחים',
+  contestHint: 'משחקי לימוד, נקודות ומדליות',
+  cabo: 'חתחתול',
+  caboHint: 'משחק קלפים נגד המחשב',
+};
+
 export const SET = {
   title: 'הגדרות',
   gate: 'רק להורים',
@@ -178,6 +242,10 @@ export const SET = {
   tryLevel: 'רמה',
   tryOpen: '▶ לשחק',
   tryBadge: '🧪 מצב בדיקה — לא נספר',
+
+  caboSection: 'חתחתול',
+  caboHints: 'אזהרה על מהלך גרוע',
+  caboHintsHint: 'שואל "בטוחים?" לפני החלפה של קלף נמוך בגבוה, או זריקה של קלף טוב. כשמכבים, המשחק לא מתערב בכלל.',
 
   feelSection: 'קול ותצוגה',
   speech: 'הקראה בקול',
