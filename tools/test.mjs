@@ -142,6 +142,12 @@ const navigate = async (hash) => {
 await load('js/app.js');
 const find = (cls) => appRoot.querySelectorAll('.' + cls);
 
+/** Is a game actually on screen? Games use different interactive
+    elements — buttons, memory cards, money, map regions — so ask about
+    all of them in one place rather than at each call site. */
+const playing = () => find('choice').length > 0 || find('mem-card').length > 0
+  || find('money').length > 0 || find('region').length > 0;
+
 await navigate('#/');
 check(`home lists all ${PROFILES.length} kids`, find('profile').length === PROFILES.length,
   `got ${find('profile').length}`);
@@ -155,9 +161,7 @@ for (const p of PROFILES) {
 
   for (const g of expected) {
     await navigate(`#/p/${p.id}/g/${g.meta.id}`);
-    check(`  ${p.name} → ${g.meta.title} draws its first round`,
-      find('choice').length > 0 || find('mem-card').length > 0
-        || find('money').length > 0 || find('region').length > 0,
+    check(`  ${p.name} → ${g.meta.title} draws its first round`, playing(),
       'stage was empty');
   }
 }
@@ -402,8 +406,7 @@ await navigate(`#/p/${kidA.id}/g/${gameOne}`);
 check('opening a used-up game bounces to the shelf',
   find('game-card').length > 0 && find('choice').length === 0);
 await navigate(`#/p/${kidA.id}/g/${gameTwo}`);
-check('another game on the same shelf still opens',
-  find('choice').length > 0 || find('mem-card').length > 0);
+check('another game on the same shelf still opens', playing());
 
 // every game used up
 seed(shelf.flatMap((id) =>
@@ -724,8 +727,7 @@ check('a spent medal is no longer pending', store.pendingMedal(kidA.id) === null
     'the store changed');
 
   await navigate('#/try/times/3');
-  check('test mode is reachable for any level a game supports',
-    find('choice').length > 0 || find('region').length > 0);
+  check('test mode is reachable for any level a game supports', playing());
 }
 
 await navigate('#/medals');
@@ -939,59 +941,120 @@ console.log('\nThinking games\n');
   check('three answers are offered', stage.querySelectorAll('.choice').length === 3);
 }
 
-/* מה יותר סביר? — the comparison must never be a coin toss */
+/* מה יותר סביר? — the comparison must never be a coin toss, and half of
+   the rounds must be the counterintuitive kind that actually teaches */
 {
   const chanceGame = GAMES.find((g) => g.meta.id === 'chance');
+  const mount = () => {
+    const stage = new Node('div');
+    chanceGame.mount(stage, {
+      profile: { ...PROFILES[0], level: 3 },
+      setProgress() {}, finish() {}, exit() {}, replay() {},
+    });
+    return stage;
+  };
+  const counts = (jar) => jar.querySelectorAll('.jar-count')[0]
+    .textContent.match(/\d+/g).map(Number);
+
   let closest = 1;
-  let sawCompare = false;
-  let sawCertainty = false;
+  let sawTrap = false;
+  let sawStraight = false;
+  const coloursAsked = new Set();
 
-  for (let attempt = 0; attempt < 24; attempt++) {
-    const stage = new Node('div');
-    chanceGame.mount(stage, {
-      profile: { ...PROFILES[0], level: 3 },
-      setProgress() {}, finish() {}, exit() {}, replay() {},
-    });
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const stage = mount();
     const jars = stage.querySelectorAll('.jar');
-    const labels = stage.querySelectorAll('.choice').map((b) => b.textContent);
+    coloursAsked.add(stage.querySelectorAll('.prompt')[0].textContent.replace(/[^֐-׿ ]/g, ''));
+    if (jars.length !== 2) continue;
 
-    if (jars.length === 2) {
-      sawCompare = true;
-      const share = (jar) => {
-        const [reds, total] = jar.querySelectorAll('.jar-count')[0]
-          .textContent.match(/\d+/g).map(Number);
-        return reds / total;
-      };
-      closest = Math.min(closest, Math.abs(share(jars[0]) - share(jars[1])));
-    } else if (labels.includes('בטוח')) {
-      sawCertainty = true;
-    }
-  }
-
-  // The two ideas strictly alternate, so round 1 is always the comparison.
-  // Play one round through to see the certainty question.
-  {
-    const stage = new Node('div');
-    chanceGame.mount(stage, {
-      profile: { ...PROFILES[0], level: 3 },
-      setProgress() {}, finish() {}, exit() {}, replay() {},
-    });
-    stage.querySelectorAll('.choice')[0].dispatch('click');
-    // Poll rather than sleep a fixed time: a right answer advances after
-    // pauseOk and a wrong one after pauseNo, and tapping the first jar is
-    // right about half the time. A fixed wait made this a coin flip.
-    for (let waited = 0; waited < 6000 && !sawCertainty; waited += 100) {
-      await sleep(100);
-      sawCertainty = stage.querySelectorAll('.choice')
-        .map((b) => b.textContent).includes('בטוח');
-    }
+    const [a, ta] = counts(jars[0]);
+    const [b, tb] = counts(jars[1]);
+    closest = Math.min(closest, Math.abs(a / ta - b / tb));
+    // does the jar with more of the colour also have the better odds?
+    if ((a > b) === (a / ta > b / tb)) sawStraight = true; else sawTrap = true;
   }
 
   check('the two jars are never close enough to be a coin toss', closest >= 0.25,
     `closest was ${closest.toFixed(2)}`);
-  check('it asks which jar is more likely', sawCompare);
-  check('it also asks certain / possible / impossible', sawCertainty);
-  check('the marbles are always all visible to count', true);
+  check('some rounds are the trap: more balls but worse odds', sawTrap,
+    'every round was just "count the most"');
+  check('some rounds are straightforward too', sawStraight);
+  check('it asks about more than one colour', coloursAsked.size > 1,
+    [...coloursAsked].join(' | '));
+  check('it says כדור, not גולה',
+    !readFileSync(join(ROOT, 'js/games/chance.js'), 'utf8').includes('גול' + 'ה'));
+
+  // certainty mode: four levels now, and never exactly half
+  const seenLabels = new Set();
+  const shares = [];
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const stage = mount();
+    const labels = stage.querySelectorAll('.choice').map((b) => b.textContent);
+    if (!labels.includes('בטוח')) continue;
+    labels.forEach((l) => seenLabels.add(l));
+    const [wanted, total] = counts(stage.querySelectorAll('.jar')[0]);
+    shares.push(wanted / total);
+  }
+  // round 1 always compares, so play one through to reach the classifier
+  {
+    const stage = mount();
+    stage.querySelectorAll('.choice')[0].dispatch('click');
+    for (let waited = 0; waited < 6000 && !seenLabels.has('סביר'); waited += 100) {
+      await sleep(100);
+      stage.querySelectorAll('.choice').map((b) => b.textContent)
+        .forEach((l) => seenLabels.add(l));
+      const jar = stage.querySelectorAll('.jar')[0];
+      if (jar && seenLabels.has('סביר')) {
+        const [wanted, total] = counts(jar);
+        shares.push(wanted / total);
+      }
+    }
+  }
+
+  check('certainty has four levels, not three',
+    ['בטוח', 'סביר', 'לא סביר', 'בלתי אפשרי'].every((l) => seenLabels.has(l)),
+    [...seenLabels].join(' | '));
+  check('a jar is never exactly half, which would have no right answer',
+    shares.every((s) => s !== 0.5), `saw ${shares.filter((s) => s === 0.5).length}`);
+}
+
+/* מילים באנגלית — both directions, and each word spoken in its own language */
+{
+  const wordsGame = GAMES.find((g) => g.meta.id === 'words');
+  const src = readFileSync(join(ROOT, 'js/games/words.js'), 'utf8');
+  const rows = [...src.matchAll(/\{ en: '([a-z ]+)', he: '([^']+)'/g)]
+    .map((m) => ({ en: m[1], he: m[2] }));
+
+  check('there are plenty of words', rows.length >= 60, `${rows.length}`);
+  check('no English word is repeated',
+    new Set(rows.map((r) => r.en)).size === rows.length);
+  check('no Hebrew word is repeated',
+    new Set(rows.map((r) => r.he)).size === rows.length);
+
+  const stage = new Node('div');
+  wordsGame.mount(stage, {
+    profile: { ...PROFILES[0], level: 3 },
+    setProgress() {}, finish() {}, exit() {}, replay() {},
+  });
+  check('a word is shown big', stage.querySelectorAll('.big-word').length === 1);
+  check('three translations are offered', stage.querySelectorAll('.choice').length === 3);
+
+  // round 1 goes English to Hebrew, round 2 the other way
+  const first = stage.querySelectorAll('.big-word')[0].textContent;
+  check('the first round shows an English word',
+    rows.some((r) => first.startsWith(r.en)), first.slice(0, 20));
+
+  stage.querySelectorAll('.choice')[0].dispatch('click');
+  let second = null;
+  for (let waited = 0; waited < 6000 && !second; waited += 100) {
+    await sleep(100);
+    const shown = stage.querySelectorAll('.big-word')[0]?.textContent;
+    if (shown && shown !== first) second = shown;
+  }
+  check('the direction flips on the next round',
+    second && rows.some((r) => second.startsWith(r.he)), second?.slice(0, 20));
+  check('each language is spoken with its own voice',
+    /lang: shownLang/.test(src) && /lang: 'en'/.test(src));
 }
 
 /* ---------- 4. read-along highlighting ---------- */

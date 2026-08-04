@@ -1059,6 +1059,7 @@ button {
 }
 
 .choice.tf { font-size: clamp(22px, 4.5vw, 34px); min-height: 92px; padding: 18px 34px; }
+.choice.tf.four { font-size: clamp(18px, 3.4vw, 26px); min-height: 76px; padding: 14px 22px; }
 .choice.tf.yes { background: #1f6b46; }
 .choice.tf.no { background: #7a2836; }
 
@@ -1381,5 +1382,35 @@ button {
 
 .marble.red { background: radial-gradient(circle at 34% 30%, #ff8a8a, #e03030); }
 .marble.blue { background: radial-gradient(circle at 34% 30%, #8ec4ff, #2f6fd0); }
+.marble.green { background: radial-gradient(circle at 34% 30%, #8fe6ac, #26a55a); }
+.marble.yellow { background: radial-gradient(circle at 34% 30%, #ffe89a, #e0ac10); }
+/* everything that isn't the colour being asked about */
+.marble.plain { background: radial-gradient(circle at 34% 30%, #d8dae0, #8a8f9a); }
 
 .jar-count { font-size: 15px; font-weight: 700; color: var(--ink-dim); }
+
+/* ---------- single-word translation ---------- */
+
+.big-word {
+  font-size: clamp(38px, 9vw, 76px);
+  line-height: 1.15;
+  text-align: center;
+  padding: 18px 30px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.09);
+  border: 2px solid rgba(255, 255, 255, 0.16);
+}
+
+.big-word small {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-dim);
+  margin-top: 10px;
+}
+
+.choice.word-choice {
+  font-size: clamp(22px, 4vw, 32px);
+  min-height: 70px;
+  padding: 14px 24px;
+}

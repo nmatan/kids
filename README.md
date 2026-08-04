@@ -353,11 +353,27 @@ Most games read from a plain list at the top of their file — no logic to touch
 
 - **מה יותר סביר?** → [js/games/chance.js](js/games/chance.js). Probability without
   fractions or percentages, the way it's actually taught at this age: two jars of
-  countable marbles ("which is more likely to give a red one?"), alternating with
-  certainty language ("בטוח / אפשרי / בלתי אפשרי"). Every marble is visible so it's
-  counting and reasoning, never guessing, and the two jars are never closer than
-  25 percentage points apart — a close call isn't a fair question at seven, and an
-  equal one has no right answer at all. Tested.
+  countable balls, alternating with certainty language — **בטוח / סביר / לא סביר /
+  בלתי אפשרי**, four levels rather than a blunt "possible", so there's a judgement
+  to make rather than a box to tick.
+
+  **Half the comparison rounds are traps**: one jar holds *more* balls of the
+  wanted colour yet is *less* likely, because it holds more balls overall
+  (3 of 8 against 2 of 3). Without those the game is just "count the most" and
+  teaches nothing about ratio — with them it's the whole point. Which round is a
+  trap alternates so exactly half are, but the phase flips per game so it's never
+  "the third one is always the sneaky one".
+
+  The colour asked about changes every round, so nobody learns "always tap the
+  jar with the most red". Every ball stays visible to count, no jar is ever
+  exactly half (that would have no right answer), and the two jars are never
+  within 25 percentage points. All of it tested.
+
+- **מילים באנגלית** → `WORDS` in [js/games/words.js](js/games/words.js). Single-word
+  translation, direction flipping every round — recognising a word you can see is
+  a different skill from retrieving one you can't. 80 pairs, `easy: true` marking
+  the ones אמיתי gets. Each word is spoken in its own language; one utterance
+  holding both comes out wrong in both.
 
 - **מילים לכתיב** → `WORDS` in [js/games/spelling.js](js/games/spelling.js).
   Drop in this week's list from school.

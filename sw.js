@@ -7,7 +7,7 @@
    fetch the new code.
    --------------------------------------------------------------- */
 
-const VERSION = 'v16';
+const VERSION = 'v18';
 const CACHE = `kids-games-${VERSION}`;
 
 const PRECACHE = [
@@ -45,6 +45,7 @@ const PRECACHE = [
   './js/games/change.js',
   './js/games/reading.js',
   './js/games/chance.js',
+  './js/games/words.js',
 ];
 
 self.addEventListener('install', (event) => {

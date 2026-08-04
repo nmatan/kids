@@ -57,6 +57,7 @@ import * as truefalse from './games/truefalse.js';
 import * as change from './games/change.js';
 import * as reading from './games/reading.js';
 import * as chance from './games/chance.js';
+import * as words from './games/words.js';
 import { enabledGames } from './settings.js';
 
 export const GAMES = [
@@ -64,6 +65,7 @@ export const GAMES = [
   letters, addsub,                     // early school
   times, clock, spelling, translate,   // school
   change, reading, chance,             // school, harder thinking
+  words,                               // English vocabulary, both levels
   money, flags, geography, truefalse,  // spread across ages
   memory,                              // all ages, scales by level
 ];
@@ -97,9 +99,10 @@ export const GAMES_PER_KID = 5;
    --------------------------------------------------------------- */
 const POOL = {
   1: ['animals', 'colors', 'shapes', 'counting', 'memory'],
-  2: ['letters', 'addsub', 'counting', 'money', 'memory', 'flags', 'truefalse', 'geography'],
-  3: ['times', 'clock', 'spelling', 'translate', 'money', 'change', 'reading',
-    'chance', 'flags', 'geography', 'truefalse', 'memory'],
+  2: ['letters', 'addsub', 'counting', 'money', 'memory', 'flags', 'truefalse',
+    'geography', 'words'],
+  3: ['times', 'clock', 'spelling', 'translate', 'words', 'money', 'change',
+    'reading', 'chance', 'flags', 'geography', 'truefalse', 'memory'],
 };
 
 /** Everything a kid at this level is allowed to be given. */
