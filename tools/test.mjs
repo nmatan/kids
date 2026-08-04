@@ -977,8 +977,14 @@ console.log('\nThinking games\n');
       setProgress() {}, finish() {}, exit() {}, replay() {},
     });
     stage.querySelectorAll('.choice')[0].dispatch('click');
-    await sleep(2400);
-    sawCertainty = stage.querySelectorAll('.choice').map((b) => b.textContent).includes('בטוח');
+    // Poll rather than sleep a fixed time: a right answer advances after
+    // pauseOk and a wrong one after pauseNo, and tapping the first jar is
+    // right about half the time. A fixed wait made this a coin flip.
+    for (let waited = 0; waited < 6000 && !sawCertainty; waited += 100) {
+      await sleep(100);
+      sawCertainty = stage.querySelectorAll('.choice')
+        .map((b) => b.textContent).includes('בטוח');
+    }
   }
 
   check('the two jars are never close enough to be a coin toss', closest >= 0.25,
