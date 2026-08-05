@@ -1497,6 +1497,22 @@ button {
 .card:not([disabled]):active { transform: scale(0.93); }
 .card:not([disabled]) { cursor: pointer; border-color: var(--gold); }
 .card.seen { box-shadow: 0 5px 0 rgba(0, 0, 0, 0.35), 0 0 18px rgba(255, 210, 63, 0.5); }
+
+/* a card you looked at but can no longer see — you know which, not what */
+.card.peeked { position: relative; }
+.card.peeked::after {
+  content: '';
+  position: absolute;
+  top: 6px;
+  inset-inline-end: 6px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 8px rgba(255, 210, 63, 0.8);
+}
+
+.two-up .hand { gap: 10px; }
 .card.drawn { animation: reward-in 300ms ease both; border-color: var(--good); }
 .card.revealed { animation: pop 400ms ease; border-color: var(--good); }
 

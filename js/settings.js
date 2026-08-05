@@ -29,6 +29,14 @@ export const DEFAULTS = {
       not blocking — the child can always insist. Off means silence. */
   caboHints: true,
 
+  /** Do peeked cards stay face up? Off by default — remembering what you
+      saw is the game. On makes it a decisions game instead, which is
+      kinder to a younger child. */
+  caboShowPeeked: false,
+
+  /** Seconds a peeked card stays visible before turning back over. */
+  caboPeekSeconds: 2,
+
   speech: true,    // spoken prompts and the end-of-game cheer
   sound: true,     // beeps and chimes
   confetti: true,  // the celebration burst

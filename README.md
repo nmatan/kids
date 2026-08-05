@@ -254,14 +254,28 @@ gives the computer one last turn before everything is revealed.
 *"משכתם 3. אפשר להחליף אותו באחד הקלפים שלכם, או לזרוק אותו."* The child is never
 looking at a board wondering what to do.
 
-**Two deliberate simplifications**, both written up in
-[js/cabo.js](js/cabo.js):
+**The opening look is automatic** — the two outside cards, both at once, the way
+it's played here. Nothing to choose and nothing to tap.
 
-1. A card you peeked at **stays visible to you**. Real Cabo makes you remember;
-   that turns it into a memory game. Keeping them visible makes it a decisions
-   game — and it's also what lets the app know when a move is a mistake.
-2. **No special-power cards.** They'd double the length of every explanation,
-   and every explanation is spoken aloud.
+By default they turn back over after a couple of seconds and **remembering them
+is the game**; a small gold dot stays on the two you saw, so you know *which*
+they were without knowing what. Settings can keep them face up for a younger
+child, and set how long the look lasts.
+
+### Cards with powers
+
+Thrown away rather than swapped in — the original rule, and it makes the choice
+real, since 7/8/9 are cards you don't want to keep anyway:
+
+| card | power | |
+|---|---|---|
+| **7** | הצץ | peek at one of your own |
+| **8** | החלף | trade one of yours for one of the computer's, blind |
+| **9** | משוך שניים | draw two, keep one |
+
+The throw button names the power, so what's on offer is visible. Powers don't
+chain — a card kept from משוך שניים can't set off another, or a turn could run
+forever. The computer uses all three too.
 
 ### The "are you sure?" guard
 
@@ -271,12 +285,22 @@ card of 3 or less, it asks first — *"רגע! הקלף שלכם הוא 2, וה�
 
 Settings → **חתחתול** → **אזהרה על מהלך גרוע** turns it off completely.
 
-### The reveal
+### The reveal — the child counts, not the app
 
-Cards turn over **one at a time**, with the running total spoken as it grows —
-*"שלוש... ועוד חמש, זה שמונה..."*. That's the counting practice, and it's also
-what makes the ending suspenseful rather than a number appearing. A drum roll
-starts it, and the deck pulses when it's running low during play.
+Cards turn over **one at a time, alternating sides**, over a drum roll. Then it
+asks **"עכשיו ספרו. מי ניצח?"** with three buttons: 🧒 אני · 🤖 המחשב · 🤝 תיקו.
+
+**No total is spoken or shown until he has answered.** That's the whole point of
+the ending — announcing "you have 14" would do the one useful bit for him.
+There's a test asserting no number appears on screen before he commits, because
+that property is easy to break by accident.
+
+Once he answers, he's told whether he **counted** right, and separately what
+actually **happened** — so losing the hand while counting correctly still earns
+the credit.
+
+Every spoken line waits for the previous one to finish before the next begins.
+Fixed pauses chopped sentences in half whenever a line ran longer than the gap.
 
 ---
 

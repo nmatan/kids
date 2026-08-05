@@ -509,6 +509,9 @@ function settingsScreen() {
 
     el('h3', { class: 'set-section', text: SET.caboSection }),
     row(SET.caboHints, SET.caboHintsHint, toggle('caboHints')),
+    row(SET.caboShowPeeked, SET.caboShowPeekedHint, toggle('caboShowPeeked')),
+    row(SET.caboPeekSeconds, SET.caboPeekSecondsHint,
+      stepper('caboPeekSeconds', { min: 1, max: 6 })),
 
     el('h3', { class: 'set-section', text: SET.feelSection }),
     row(SET.speech, null, toggle('speech')),

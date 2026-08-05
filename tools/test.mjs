@@ -1068,155 +1068,190 @@ console.log('\nחתחתול\n');
 {
   const { mountCabo } = await load('js/cabo.js');
   cfg.resetSettings();
+  // The peek reveal is a two-second pause by design; at zero the same
+  // code runs without the suite spending minutes watching cards.
+  cfg.set('caboPeekSeconds', 0);
 
   const open = () => {
     const room = new Node('div');
     const stop = mountCabo(room, { onExit() {} });
     return { room, stop };
   };
-
   const cards = (room) => room.querySelectorAll('.card');
-  const faceUp = (room) => cards(room).filter((c) => c.classList.contains('up'));
+  const mine = (room) => cards(room)
+    .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'));
   const banner = (room) => room.querySelectorAll('.cabo-banner')[0].textContent;
+  const btn = (room, word) => room.querySelectorAll('.btn')
+    .find((b) => b.textContent.includes(word));
+
+  /** The opening look runs itself now — just wait for it to finish. */
+  const peekTwice = async (room) => {
+    for (let waited = 0; waited < 5000; waited += 50) {
+      await sleep(50);
+      if (banner(room).includes('התור שלכם')) return;
+    }
+  };
 
   // --- the deal ---
   {
     const { room, stop } = open();
     check('both hands are dealt face down',
-      cards(room).filter((c) => c.classList.contains('down')).length >= 8,
-      `${cards(room).filter((c) => c.classList.contains('down')).length}`);
-    check('the game explains itself before anything else',
-      banner(room).includes('חתחתול') && banner(room).includes('הציצו'), banner(room));
+      cards(room).filter((c) => c.classList.contains('down')).length >= 8);
+    // No longer "peek at two" — the look happens by itself, so the first
+    // thing said is just the goal.
+    check('the first line states the goal, briefly',
+      banner(room).includes('הסכום') && banner(room).length < 45, banner(room));
+    check('you have four cards', mine(room).length === 4);
     stop();
   }
 
-  // --- the opening peek: exactly two, then the turn starts ---
+  // --- peeks are hidden again by default ---
   {
     const { room, stop } = open();
-    const mine = cards(room).filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'));
-    check('you have four cards', mine.length === 4, `${mine.length}`);
-
-    mine[0].dispatch('click');
-    await sleep(20);
-    check('one peek asks for a second', banner(room).includes('עוד קלף'), banner(room));
-
-    room.querySelectorAll('.card')
-      .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
-      .filter((c) => !c.classList.contains('up'))[0].dispatch('click');
-    await sleep(20);
-    check('after two peeks it is your turn', banner(room).includes('התור שלכם'), banner(room));
-    check('exactly two of your cards are visible',
-      room.querySelectorAll('.card')
-        .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
-        .filter((c) => c.classList.contains('up')).length === 2);
+    await peekTwice(room);
+    check('the opening look ends by itself', banner(room).includes('התור שלכם'), banner(room));
+    check('it shows the two outer cards, not a choice',
+      mine(room).filter((c) => c.classList.contains('peeked'))
+        .every((c, _, all) => all.length === 2)
+      && mine(room)[0].classList.contains('peeked')
+      && mine(room)[3].classList.contains('peeked'),
+      mine(room).map((c) => c.className).join(' | '));
+    check('peeked cards turn back over by default',
+      mine(room).filter((c) => c.classList.contains('up')).length === 0,
+      `${mine(room).filter((c) => c.classList.contains('up')).length} still visible`);
+    check('but you can see which two you looked at',
+      mine(room).filter((c) => c.classList.contains('peeked')).length === 2,
+      `${mine(room).filter((c) => c.classList.contains('peeked')).length} marked`);
     stop();
   }
 
-  /** Deal, peek twice, and draw — the state most checks care about. */
+  // --- and stay visible when the setting is on ---
+  {
+    cfg.set('caboShowPeeked', true);
+    const { room, stop } = open();
+    await peekTwice(room);
+    check('the setting keeps peeked cards face up',
+      mine(room).filter((c) => c.classList.contains('up')).length === 2,
+      `${mine(room).filter((c) => c.classList.contains('up')).length} visible`);
+    stop();
+  }
+
+  /** Deal, peek, draw — with values visible so the test can reason. */
   const toDrawn = async () => {
     const { room, stop } = open();
-    for (let i = 0; i < 2; i++) {
-      room.querySelectorAll('.card')
-        .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
-        .filter((c) => !c.classList.contains('up'))[0].dispatch('click');
-      await sleep(20);
-    }
-    room.querySelectorAll('.card').find((c) => c.classList.contains('deck')).dispatch('click');
-    await sleep(30);
+    await peekTwice(room);
+    cards(room).find((c) => c.classList.contains('deck')).dispatch('click');
+    await sleep(40);
     return { room, stop };
   };
 
   {
     const { room, stop } = await toDrawn();
-    check('drawing tells you what you got and what you can do',
-      banner(room).includes('משכתם') && banner(room).includes('להחליף'), banner(room));
-    check('the drawn card is face up', room.querySelectorAll('.drawn').length === 1);
-    check('there is a way to throw it away',
-      room.querySelectorAll('.btn').some((b) => b.textContent.includes('לזרוק')));
+    check('drawing says the value and the choice, briefly',
+      /^\d+\./.test(banner(room)) && banner(room).length < 40, banner(room));
+    check('the drawn card is face up', room.querySelectorAll('.drawn').length >= 1);
+    check('there is a way to throw it away', Boolean(btn(room, 'לזרוק') || btn(room, 'הצץ')
+      || btn(room, 'החלף') || btn(room, 'משוך')));
     stop();
   }
 
   // --- the "are you sure?" guard ---
   {
-    // Find a deal where a peeked card is lower than the drawn card, which
-    // is the exact situation the guard exists for.
     let guarded = false;
-    let refusedWithHintsOff = false;
-
-    for (let attempt = 0; attempt < 40 && !guarded; attempt++) {
+    for (let attempt = 0; attempt < 50 && !guarded; attempt++) {
       const { room, stop } = await toDrawn();
-      const drawn = Number(room.querySelectorAll('.drawn')[0].textContent);
-      const seen = room.querySelectorAll('.card')
-        .filter((c) => c.classList.contains('seen'));
-      const worse = seen.find((c) => Number(c.textContent) < drawn);
+      const drawn = Number(room.querySelectorAll('.drawn')[0]?.textContent);
+      const worse = mine(room).filter((c) => c.classList.contains('up'))
+        .find((c) => Number(c.textContent) < drawn);
       if (worse) {
         worse.dispatch('click');
-        await sleep(40);
+        await sleep(50);
         guarded = banner(room).includes('בטוחים');
       }
       stop();
     }
-    check('swapping a known-low card for a higher one asks first', guarded,
-      'the guard never fired');
+    check('swapping a known-low card for a higher one asks first', guarded);
 
-    // ...and stays quiet when the parent turns it off
     cfg.set('caboHints', false);
-    for (let attempt = 0; attempt < 40 && !refusedWithHintsOff; attempt++) {
+    let quiet = false;
+    for (let attempt = 0; attempt < 50 && !quiet; attempt++) {
       const { room, stop } = await toDrawn();
-      const drawn = Number(room.querySelectorAll('.drawn')[0].textContent);
-      const worse = room.querySelectorAll('.card')
-        .filter((c) => c.classList.contains('seen'))
+      const drawn = Number(room.querySelectorAll('.drawn')[0]?.textContent);
+      const worse = mine(room).filter((c) => c.classList.contains('up'))
         .find((c) => Number(c.textContent) < drawn);
       if (worse) {
         worse.dispatch('click');
-        await sleep(40);
-        // no question — the swap just happened
-        refusedWithHintsOff = !banner(room).includes('בטוחים');
+        await sleep(50);
+        quiet = !banner(room).includes('בטוחים');
       }
       stop();
     }
-    check('turning the hints off makes it stop asking', refusedWithHintsOff);
-    cfg.resetSettings();
+    check('turning the hints off makes it stop asking', quiet);
+    cfg.set('caboHints', true);
   }
 
-  // --- calling חתחתול leads to a reveal that counts ---
+  // --- the three powers ---
   {
-    const { room, stop } = open();
-    for (let i = 0; i < 2; i++) {
-      room.querySelectorAll('.card')
-        .filter((c) => c.getAttribute('aria-label')?.includes('הקלף שלך'))
-        .filter((c) => !c.classList.contains('up'))[0].dispatch('click');
-      await sleep(20);
+    const powers = { 7: 'הצץ', 8: 'החלף', 9: 'משוך' };
+    const found = {};
+    for (let attempt = 0; attempt < 120 && Object.keys(found).length < 3; attempt++) {
+      const { room, stop } = await toDrawn();
+      const drawn = Number(room.querySelectorAll('.drawn')[0]?.textContent);
+      if (powers[drawn] && !found[drawn]) {
+        const throwBtn = btn(room, powers[drawn]);
+        if (throwBtn) {
+          throwBtn.dispatch('click');
+          await sleep(60);
+          found[drawn] = banner(room);
+        }
+      }
+      stop();
     }
-    const callBtn = room.querySelectorAll('.btn').find((b) => b.textContent.includes('חתחתול'));
+    check('7 offers הצץ', /הצץ/.test(found[7] || ''), found[7]);
+    check('8 offers החלף', /החלף/.test(found[8] || ''), found[8]);
+    check('9 offers משוך שניים', /שניים/.test(found[9] || ''), found[9]);
+    check('every power instruction is one short sentence',
+      [7, 8, 9].every((v) => (found[v] || '').length < 45),
+      [7, 8, 9].map((v) => found[v]).join(' | '));
+  }
+
+  // --- calling and the counted reveal ---
+  {
+    cfg.set('caboShowPeeked', true);
+    const { room, stop } = open();
+    await peekTwice(room);
+    const callBtn = btn(room, 'חתחתול');
     check('you can call חתחתול on your turn', Boolean(callBtn));
     callBtn.dispatch('click');
     await sleep(60);
-    check('calling is announced', banner(room).includes('הכרזתם'), banner(room));
+    check('calling is announced', banner(room).includes('חתחתול'), banner(room));
 
-    // let the computer take its last turn and the reveal run through
-    let counted = false;
-    for (let waited = 0; waited < 40000 && !counted; waited += 250) {
+    let asked = false;
+    for (let waited = 0; waited < 60000 && !asked; waited += 250) {
       await sleep(250);
-      if (/סך הכל/.test(banner(room))) counted = true;
+      asked = banner(room).includes('מי ניצח');
     }
-    check('the reveal counts out loud, card by card', counted, banner(room));
+    check('the reveal asks the child who won rather than telling him', asked, banner(room));
+    check('all eight cards are face up before he is asked',
+      room.querySelectorAll('.revealed').length === 8,
+      `${room.querySelectorAll('.revealed').length} of 8`);
+    check('he is never told the totals before answering',
+      !/d+ מול d+|אתם d+/.test(banner(room)), banner(room));
+    check('he gets three verdicts to choose from',
+      ['אני', 'המחשב', 'תיקו'].every((w) => btn(room, w)));
 
+    btn(room, 'אני').dispatch('click');
     let finished = false;
-    for (let waited = 0; waited < 40000 && !finished; waited += 250) {
+    for (let waited = 0; waited < 60000 && !finished; waited += 250) {
       await sleep(250);
       finished = /ניצחתם|המחשב ניצח|תיקו/.test(banner(room));
     }
-    check('a winner is announced at the end', finished, banner(room));
-    // .card also covers the deck and discard piles, so count the eight
-    // hand cards that were actually turned over.
-    const revealed = room.querySelectorAll('.revealed');
-    check('all eight hand cards end up face up', revealed.length === 8,
-      `${revealed.length} of 8`);
-    check('you can start another game',
-      room.querySelectorAll('.btn').some((b) => b.textContent.includes('עוד משחק')));
+    check('only then is the result confirmed', finished, banner(room));
+    check('you can start another game', Boolean(btn(room, 'עוד משחק')));
     stop();
   }
+
+  cfg.resetSettings();
 }
 
 /* ---------- 4. read-along highlighting ---------- */

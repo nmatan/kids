@@ -2,35 +2,51 @@
    cabo.js — חתחתול נגד המחשב.
 
    ── החוקים כאן ───────────────────────────────────────────────────
-   לכל שחקן 4 קלפים הפוכים. הקלפים הם 0 עד 9 בלבד — לא ג׳וקרים ולא
-   מלכים — כדי שהספירה בסוף תהיה ספירה שילד בן 7 באמת יכול לעשות.
-   מנצח מי שסכום הקלפים שלו נמוך יותר.
+   לכל שחקן 4 קלפים הפוכים, ערכים 0 עד 9 בלבד — כדי שהספירה בסוף
+   תהיה ספירה שילד בן 7 באמת יכול לעשות. מנצח הסכום הנמוך.
 
-   בתור: מושכים קלף מהחפיסה או לוקחים את הקלף העליון מהערמה, ואז
-   או מחליפים אותו באחד מארבעת הקלפים שלכם (הקלף שהוחלף נזרק לערמה)
-   או זורקים אותו. במקום תור אפשר להכריז "חתחתול!" — ואז ליריב יש
-   תור אחד אחרון, וחושפים.
+   בתור: מושכים מהחפיסה או לוקחים מהערמה, ואז מחליפים באחד הקלפים
+   שלכם או זורקים. במקום תור אפשר להכריז "חתחתול!" — ואז ליריב תור
+   אחרון אחד, וחושפים.
 
-   ── שתי הקלות מכוונות לילדים ─────────────────────────────────────
-   1. בחתחתול האמיתי צריך לזכור מה הצצתם בו. כאן קלף שהצצתם בו נשאר
-      גלוי לכם. זה הופך את המשחק ממשחק זיכרון למשחק החלטות — וזה גם
-      מה שמאפשר לנו לדעת מתי הילד עומד לעשות טעות ולשאול אותו.
-   2. אין קלפים עם כוחות מיוחדים. הם מסבכים את ההסבר, וההסבר נאמר
-      בקול בכל צעד.
+   ── קלפי כוח ─────────────────────────────────────────────────────
+   הכוח מופעל כשזורקים את הקלף, לא כשמחליפים בו. זה החוק המקורי והוא
+   גם הגיוני: 7, 8 ו-9 הם קלפים גרועים להחזיק, אז ההחלטה היא אמיתית —
+   לזרוק ולהרוויח כוח, או להחליף כי יש לכם משהו גרוע עוד יותר.
 
-   ── האזהרה על מהלך גרוע ──────────────────────────────────────────
-   אם הילד עומד להחליף קלף שהוא *יודע* שהוא נמוך בקלף גבוה יותר, או
-   לזרוק קלף נמוך מאוד, נשאלת שאלת אישור. זה לימוד, לא חסימה — הוא
-   תמיד יכול להתעקש. אפשר לכבות את זה בהגדרות (caboHints).
+     7  הצץ         — מציצים באחד הקלפים שלכם
+     8  החלף        — מחליפים קלף שלכם בקלף של המחשב, בלי לראות
+     9  משוך שניים  — מושכים שניים ובוחרים איזה לשמור
+
+   כוח לא משרשר: קלף שהגיע מ"משוך שניים" ונזרק לא מפעיל כוח נוסף,
+   אחרת תור אחד יכול להימשך לנצח.
+
+   ── זיכרון ───────────────────────────------------------------
+   כברירת מחדל קלף שהצצתם בו נחשף לרגע וחוזר להיות הפוך — צריך לזכור,
+   וזה עיקר המשחק. מסומנת עליו נקודה קטנה כדי שתדעו *באיזה* הצצתם,
+   בדיוק כמו שיודעים סביב שולחן אמיתי. אפשר להשאיר אותם גלויים
+   בהגדרות (caboShowPeeked) לילד צעיר יותר.
+
+   בכל מקרה המשחק זוכר מה הילד ראה, וזה מה שמאפשר את שאלת האישור
+   לפני מהלך גרוע (caboHints).
    --------------------------------------------------------------- */
 
-import { el, clear, shuffle, range, speak, stopSpeech, sfx, celebrate, burst, wait, randInt } from './kit.js';
+import {
+  el, clear, shuffle, range, speak, stopSpeech, waitForSpeech, sfx,
+  celebrate, burst, wait, randInt,
+} from './kit.js';
 import { get } from './settings.js';
 import { CABO } from './text.js';
 
 const HAND = 4;
 const LOW_ENOUGH = 3;   // a card this low is worth keeping
 const AI_CALLS_AT = 8;  // the computer calls once its known total is this good
+/** How long a peeked card stays visible, in seconds. A setting because
+    a younger child genuinely needs longer to take it in. */
+const flashMs = () => Math.max(0, get('caboPeekSeconds')) * 1000;
+
+/** Which values carry a power when thrown away. */
+const POWERS = { 7: 'peek', 8: 'swap', 9: 'draw2' };
 
 /** 0-9, four of each. Small numbers so the final count is countable. */
 const newDeck = () => shuffle(range(10).flatMap((v) => [v, v, v, v]));
@@ -44,10 +60,20 @@ export function mountCabo(root, { onExit }) {
   const table = el('div', { class: 'cabo-table' });
   const controls = el('div', { class: 'cabo-controls' });
 
-  /** Say a step out loud and show it, so the child always knows what's next. */
+  /** One short instruction, shown and spoken. */
   function narrate(text, opts = {}) {
     banner.textContent = text;
-    speak(text, { rate: 0.92, ...opts });
+    speak(text, { rate: 0.95, ...opts });
+  }
+
+  /**
+   * Narrate and wait for the voice to actually finish. Every step in a
+   * sequence uses this — the next speak() cancels the current one, so a
+   * fixed pause that happens to be shorter chops the sentence in half.
+   */
+  async function say(text, opts) {
+    narrate(text, opts);
+    await waitForSpeech(6000);
   }
 
   function deal() {
@@ -57,20 +83,34 @@ export function mountCabo(root, { onExit }) {
       discard: [deck.pop()],
       you: range(HAND).map(() => ({ v: deck.pop(), seen: false })),
       cpu: range(HAND).map(() => ({ v: deck.pop(), aiSeen: false })),
-      drawn: null,        // the card in hand mid-turn
-      drawnFrom: null,
-      phase: 'peek',      // peek → your turn → cpu turn → reveal
-      peeksLeft: 2,
-      called: null,       // who called חתחתול
-      lastTurn: false,    // the one final turn after a call
-      turn: 'you',
+      drawn: null,
+      phase: 'peek',
+      called: null,
+      lastTurn: false,
+      power: null,        // 'peek' | 'swap-mine' | 'swap-cpu' | 'draw2'
+      twoCards: null,     // the pair offered by משוך שניים
+      swapMine: null,     // your card chosen for החלף
+      noChain: false,     // a card from משוך שניים can't trigger another power
+      flash: null,        // { side, i } — a card being shown briefly
     };
-    // The computer starts knowing two of its own, exactly like the player.
     state.cpu[0].aiSeen = true;
     state.cpu[1].aiSeen = true;
   }
 
-  /* ---------- drawing ---------- */
+  /** Show one or more cards briefly, then turn them back over. */
+  async function flash(side, indexes) {
+    state.flash = { side, list: [].concat(indexes) };
+    render();
+    await wait(flashMs());
+    if (dead) return;
+    state.flash = null;
+    render();
+  }
+
+  const isFlashing = (side, i) =>
+    state.flash?.side === side && state.flash.list.includes(i);
+
+  /* ---------- drawing the table ---------- */
 
   const cardEl = (value, { faceUp, cls = '', onClick, label }) => {
     const node = el('button', {
@@ -87,9 +127,10 @@ export function mountCabo(root, { onExit }) {
     clear(table);
     clear(controls);
 
-    const canPeek = state.phase === 'peek';
-    const yourTurn = state.phase === 'your-turn' && !busy;
-    const choosing = state.phase === 'drawn' && !busy;
+    const idle = !busy;
+    const yourTurn = state.phase === 'your-turn' && idle;
+    const choosing = state.phase === 'drawn' && idle;
+    const keepPeeked = get('caboShowPeeked');
 
     // --- computer's hand ---
     table.append(
@@ -97,17 +138,17 @@ export function mountCabo(root, { onExit }) {
         el('div', { class: 'cabo-who' }, `🤖 ${CABO.computer}`),
         el('div', { class: 'hand' },
           state.cpu.map((c, i) => cardEl(c.v, {
-            // `revealed` alone, not the phase: once a card is turned over it
-            // stays over, including after the game ends.
-            faceUp: Boolean(c.revealed),
+            faceUp: Boolean(c.revealed) || isFlashing('cpu', i),
             cls: c.revealed ? 'revealed' : '',
+            // only tappable while picking a target for החלף
+            onClick: state.power === 'swap-cpu' && idle ? () => powerSwapCpu(i) : null,
             label: `${CABO.computer} ${i + 1}`,
           })),
         ),
       ),
     );
 
-    // --- deck and discard ---
+    // --- deck, card in hand, discard ---
     table.append(
       el('div', { class: 'cabo-middle' },
         el('div', { class: 'pile' },
@@ -119,11 +160,28 @@ export function mountCabo(root, { onExit }) {
           }),
           el('span', { class: 'pile-label' }, `${CABO.deck} (${state.deck.length})`),
         ),
-        state.drawn !== null
-          ? el('div', { class: 'pile drawn-pile' },
-            cardEl(state.drawn, { faceUp: true, cls: 'drawn' }),
+
+        // משוך שניים offers a choice of two
+        state.twoCards
+          ? el('div', { class: 'pile two-up' },
+            el('div', { class: 'hand' },
+              state.twoCards.map((v, i) => cardEl(v, {
+                faceUp: true,
+                cls: 'drawn',
+                onClick: idle ? () => keepOneOfTwo(i) : null,
+                label: `${v}`,
+              })),
+            ),
             el('span', { class: 'pile-label' }, CABO.inHand))
-          : null,
+          : state.drawn !== null
+            ? el('div', { class: 'pile' },
+              cardEl(state.drawn, { faceUp: true, cls: 'drawn' }),
+              el('span', { class: 'pile-label' },
+                POWERS[state.drawn] && !state.noChain
+                  ? `${CABO.inHand} · ${CABO.powers[state.drawn]}`
+                  : CABO.inHand))
+            : null,
+
         el('div', { class: 'pile' },
           cardEl(state.discard.at(-1), {
             faceUp: true,
@@ -141,11 +199,13 @@ export function mountCabo(root, { onExit }) {
       el('div', { class: 'cabo-side' },
         el('div', { class: 'hand' },
           state.you.map((c, i) => cardEl(c.v, {
-            // A card you've peeked at stays visible — see the note up top.
-            faceUp: c.seen || Boolean(c.revealed),
-            cls: `${c.seen ? 'seen' : ''} ${c.revealed ? 'revealed' : ''}`.trim(),
-            onClick: canPeek && !c.seen ? () => peek(i)
-              : choosing ? () => trySwap(i) : null,
+            faceUp: Boolean(c.revealed) || isFlashing('you', i) || (c.seen && keepPeeked),
+            // A dot marks which ones you've looked at, even when the value
+            // is hidden — around a real table you'd know that much too.
+            cls: `${c.seen && !keepPeeked ? 'peeked' : ''} ${c.revealed ? 'revealed' : ''}`.trim(),
+            onClick: choosing ? () => trySwap(i)
+                : state.power === 'peek' && idle ? () => powerPeek(i)
+                  : state.power === 'swap-mine' && idle ? () => powerSwapMine(i) : null,
             label: `${CABO.yourCard} ${i + 1}`,
           })),
         ),
@@ -154,9 +214,12 @@ export function mountCabo(root, { onExit }) {
     );
 
     // --- buttons ---
-    if (state.phase === 'drawn' && !busy) {
+    if (choosing) {
       controls.append(
-        el('button', { class: 'btn primary', onClick: () => tryDiscard() }, CABO.throwAway),
+        el('button', { class: 'btn primary', onClick: () => tryDiscard() },
+          POWERS[state.drawn] && !state.noChain
+            ? `🗑 ${CABO.powers[state.drawn]}`
+            : CABO.throwAway),
       );
     }
     if (yourTurn && !state.called) {
@@ -172,19 +235,29 @@ export function mountCabo(root, { onExit }) {
     }
   }
 
-  /* ---------- the opening peek ---------- */
+  /* ---------- the opening look ---------- */
 
-  function peek(i) {
-    if (state.peeksLeft <= 0) return;
-    state.you[i].seen = true;
-    state.peeksLeft--;
-    sfx.tap();
-    if (state.peeksLeft > 0) {
-      narrate(CABO.peekOneMore);
-    } else {
-      state.phase = 'your-turn';
-      narrate(CABO.peekDone);
-    }
+  /**
+   * The Israeli way: you don't choose which to look at — it's always the
+   * two outside cards, and both at once. Nothing to tap, so the game
+   * starts itself.
+   */
+  async function openingLook() {
+    busy = true;
+    const outer = [0, HAND - 1];
+    await say(CABO.intro);
+    if (dead) return;
+
+    outer.forEach((i) => { state.you[i].seen = true; });
+    sfx.rise(0.6);
+    narrate(CABO.lookAtThese);
+    await flash('you', outer);
+    if (dead) return;
+
+    busy = false;
+    state.phase = 'your-turn';
+    await say(CABO.peekDone);
+    if (dead) return;
     render();
   }
 
@@ -192,21 +265,17 @@ export function mountCabo(root, { onExit }) {
 
   function drawFrom(where) {
     if (busy) return;
-    state.drawnFrom = where;
+    state.noChain = false;
     state.drawn = where === 'deck' ? state.deck.pop() : state.discard.pop();
     state.phase = 'drawn';
     sfx.tap();
-    // A really good card deserves a noise that says so.
     if (state.drawn <= 2) sfx.rise(0.5);
     narrate(CABO.drew(state.drawn));
     render();
   }
 
-  /** Would swapping card `i` for the drawn card obviously make things worse? */
-  function badSwap(i) {
-    const mine = state.you[i];
-    return mine.seen && state.drawn > mine.v;
-  }
+  /** Would this swap obviously make things worse, going on what he saw? */
+  const badSwap = (i) => state.you[i].seen && state.drawn > state.you[i].v;
 
   async function confirmIfSilly(question) {
     if (!get('caboHints')) return true;
@@ -229,10 +298,6 @@ export function mountCabo(root, { onExit }) {
       busy = false;
       if (!ok) { narrate(CABO.pickAnother); render(); return; }
     }
-    doSwap(i);
-  }
-
-  function doSwap(i) {
     state.discard.push(state.you[i].v);
     state.you[i] = { v: state.drawn, seen: true }; // you saw what you put there
     state.drawn = null;
@@ -243,88 +308,180 @@ export function mountCabo(root, { onExit }) {
 
   async function tryDiscard() {
     if (busy) return;
-    if (state.drawn <= LOW_ENOUGH) {
+    const power = state.noChain ? null : POWERS[state.drawn];
+
+    // Only warn about throwing away a good card when there's no power to
+    // gain by doing it — otherwise the "mistake" is the whole point.
+    if (!power && state.drawn <= LOW_ENOUGH) {
       busy = true;
       const ok = await confirmIfSilly(CABO.sureThrow(state.drawn));
       busy = false;
       if (!ok) { narrate(CABO.chooseCard); render(); return; }
     }
+
     state.discard.push(state.drawn);
     state.drawn = null;
     sfx.tap();
+
+    if (power === 'peek') { state.power = 'peek'; narrate(CABO.powerPeek); return render(); }
+    if (power === 'swap') { state.power = 'swap-mine'; narrate(CABO.powerSwap); return render(); }
+    if (power === 'draw2') return drawTwo();
+
     narrate(CABO.threwAway);
     endYourTurn();
   }
 
-  async function endYourTurn() {
-    render();
-    await wait(1100);
+  /* ---------- the powers ---------- */
+
+  async function powerPeek(i) {
+    busy = true;
+    state.power = null;
+    state.you[i].seen = true;
+    sfx.correct();
+    narrate(CABO.peeked(state.you[i].v));
+    await flash('you', i);
     if (dead) return;
-    if (state.called === 'you' || (state.called === 'cpu' && state.lastTurn)) return reveal();
+    busy = false;
+    endYourTurn();
+  }
+
+  function powerSwapMine(i) {
+    state.swapMine = i;
+    state.power = 'swap-cpu';
+    sfx.tap();
+    narrate(CABO.powerSwapCpu);
+    render();
+  }
+
+  function powerSwapCpu(j) {
+    const mine = state.swapMine;
+    const tmp = state.you[mine];
+    // A blind trade: you no longer know your own card, and the computer
+    // no longer knows the one it got.
+    state.you[mine] = { v: state.cpu[j].v, seen: false };
+    state.cpu[j] = { v: tmp.v, aiSeen: false };
+    state.power = null;
+    state.swapMine = null;
+    sfx.correct();
+    narrate(CABO.swappedWithCpu);
+    endYourTurn();
+  }
+
+  function drawTwo() {
+    state.twoCards = [state.deck.pop(), state.deck.pop()].filter((v) => v !== undefined);
+    if (state.twoCards.length === 0) { state.twoCards = null; return endYourTurn(); }
+    narrate(CABO.powerDrawTwo);
+    render();
+  }
+
+  function keepOneOfTwo(i) {
+    const kept = state.twoCards[i];
+    const dropped = state.twoCards[1 - i];
+    if (dropped !== undefined) state.discard.push(dropped);
+    state.twoCards = null;
+    state.drawn = kept;
+    state.noChain = true;   // no power chaining
+    state.phase = 'drawn';
+    sfx.tap();
+    narrate(CABO.drew(kept));
+    render();
+  }
+
+  /* ---------- turn handover ---------- */
+
+  async function endYourTurn() {
+    state.power = null;
+    render();
+    await wait(1000);
+    if (dead) return;
+    if (state.called === 'you' && state.lastTurn) return reveal();
+    if (state.called === 'cpu' && state.lastTurn) return reveal();
     if (state.called === 'you') state.lastTurn = true;
     computerTurn();
   }
 
   /* ---------- the computer ---------- */
 
-  /** Its own worst card that it knows about. */
   const cpuWorstKnown = () => state.cpu
     .map((c, i) => ({ ...c, i }))
     .filter((c) => c.aiSeen)
     .sort((a, b) => b.v - a.v)[0] || null;
 
   const cpuKnownTotal = () => state.cpu
-    .reduce((sum, c) => sum + (c.aiSeen ? c.v : 5), 0); // unseen counts as average
+    .reduce((sum, c) => sum + (c.aiSeen ? c.v : 5), 0);
 
   async function computerTurn() {
     busy = true;
     state.phase = 'cpu-turn';
     narrate(CABO.cpuThinking);
     render();
-    await wait(1400);
+    await wait(1300);
     if (dead) return;
 
-    // Call it if its hand looks good enough and nobody has yet.
     if (!state.called && cpuKnownTotal() <= AI_CALLS_AT && state.deck.length < 30) {
       busy = false;
       return callCabo('cpu');
     }
+    if (state.deck.length === 0) { busy = false; return reveal(); }
 
     const top = state.discard.at(-1);
     const worst = cpuWorstKnown();
-    // Take the discard only if it clearly improves a card it knows about.
     const takeDiscard = worst && top < worst.v - 1;
     const card = takeDiscard ? state.discard.pop() : state.deck.pop();
     narrate(takeDiscard ? CABO.cpuTookDiscard : CABO.cpuDrew);
-    await wait(1300);
+    await wait(1200);
     if (dead) return;
 
-    const target = worst && card < worst.v
-      ? worst
-      : state.cpu.find((c) => !c.aiSeen) && card <= 3
-        ? { i: state.cpu.findIndex((c) => !c.aiSeen) }
-        : null;
+    const swapTarget = worst && card < worst.v ? worst.i
+      : card <= 3 ? state.cpu.findIndex((c) => !c.aiSeen)
+        : -1;
 
-    if (target) {
-      state.discard.push(state.cpu[target.i].v);
-      state.cpu[target.i] = { v: card, aiSeen: true };
+    if (swapTarget >= 0) {
+      state.discard.push(state.cpu[swapTarget].v);
+      state.cpu[swapTarget] = { v: card, aiSeen: true };
       narrate(CABO.cpuSwapped);
     } else {
       state.discard.push(card);
-      narrate(CABO.cpuThrew);
+      // The computer uses the powers too, simply.
+      const power = POWERS[card];
+      if (power === 'peek') {
+        const hidden = state.cpu.findIndex((c) => !c.aiSeen);
+        if (hidden >= 0) state.cpu[hidden].aiSeen = true;
+        narrate(CABO.cpuPeeked);
+      } else if (power === 'swap' && worst) {
+        const j = randInt(0, HAND - 1);
+        const mine = state.you[j];
+        state.you[j] = { v: state.cpu[worst.i].v, seen: false };
+        state.cpu[worst.i] = { v: mine.v, aiSeen: false };
+        narrate(CABO.cpuSwappedWithYou);
+      } else if (power === 'draw2' && state.deck.length >= 2) {
+        const [x, y] = [state.deck.pop(), state.deck.pop()];
+        const keep = Math.min(x, y);
+        state.discard.push(Math.max(x, y));
+        narrate(CABO.cpuDrewTwo);
+        if (worst && keep < worst.v) {
+          state.discard.push(state.cpu[worst.i].v);
+          state.cpu[worst.i] = { v: keep, aiSeen: true };
+        } else {
+          state.discard.push(keep);
+        }
+      } else {
+        narrate(CABO.cpuThrew);
+      }
     }
 
     render();
     await wait(1200);
     if (dead) return;
-
     busy = false;
-    if (state.called === 'cpu' || (state.called === 'you' && state.lastTurn)) return reveal();
+
+    if (state.called === 'cpu' && state.lastTurn) return reveal();
+    if (state.called === 'you' && state.lastTurn) return reveal();
     if (state.called === 'cpu') state.lastTurn = true;
     if (state.deck.length === 0) return reveal();
 
     state.phase = 'your-turn';
-    narrate(CABO.yourTurn);
+    narrate(state.called === 'cpu' ? CABO.lastTurn : CABO.yourTurn);
     render();
   }
 
@@ -332,18 +489,16 @@ export function mountCabo(root, { onExit }) {
 
   async function callCabo(who) {
     state.called = who;
+    state.lastTurn = true;
     sfx.fanfare();
-    narrate(who === 'you' ? CABO.youCalled : CABO.cpuCalled, { rate: 0.95 });
+    narrate(who === 'you' ? CABO.youCalled : CABO.cpuCalled);
     render();
-    await wait(2200);
+    await wait(2000);
     if (dead) return;
 
-    // The other player gets exactly one more turn.
     if (who === 'you') {
-      state.lastTurn = true;
       computerTurn();
     } else {
-      state.lastTurn = true;
       state.phase = 'your-turn';
       narrate(CABO.lastTurn);
       render();
@@ -352,70 +507,84 @@ export function mountCabo(root, { onExit }) {
 
   /* ---------- the reveal ---------- */
 
+  /**
+   * Flip everything over, then hand the maths to the child.
+   *
+   * The app deliberately does NOT read the totals out. Counting the cards
+   * and working out who won is the whole point of the ending — announcing
+   * "you have 14" would do the one useful bit for him. So it flips, asks,
+   * and only confirms once he has committed to an answer.
+   */
   async function reveal() {
     state.phase = 'reveal';
     busy = true;
+    state.flash = null;
     clear(controls);
     render();
 
-    narrate(CABO.revealNow, { rate: 0.95 });
-    sfx.roll(2.5);
-    await wait(2600);
+    await say(CABO.revealNow);
     if (dead) return;
+    sfx.roll(2.2);
 
-    /** Turn one hand over a card at a time, counting out loud as we go. */
-    async function countHand(hand, whoLabel) {
-      let total = 0;
-      narrate(CABO.counting(whoLabel));
-      await wait(1200);
-      for (let i = 0; i < hand.length; i++) {
-        if (dead) return 0;
-        hand[i].revealed = true;
-        total += hand[i].v;
-        sfx.correct();
-        render();
-        // Say the card, then the running total — this is the counting bit.
-        banner.textContent = `${hand[i].v}  →  ${CABO.runningTotal(total)}`;
-        speak(i === 0 ? `${hand[i].v}` : `ועוד ${hand[i].v}, זה ${total}`, { rate: 0.9 });
-        await wait(1900);
-      }
-      return total;
+    // One card at a time, alternating sides — that's where the tension is.
+    const order = [];
+    for (let i = 0; i < HAND; i++) order.push(['you', i], ['cpu', i]);
+    for (const [side, i] of order) {
+      if (dead) return;
+      state[side][i].revealed = true;
+      sfx.correct();
+      render();
+      await wait(650);
     }
 
-    const yourTotal = await countHand(state.you, CABO.you);
+    const yourTotal = state.you.reduce((sum, card) => sum + card.v, 0);
+    const cpuTotal = state.cpu.reduce((sum, card) => sum + card.v, 0);
+    const truth = yourTotal < cpuTotal ? 'you' : cpuTotal < yourTotal ? 'cpu' : 'tie';
+
+    await wait(400);
     if (dead) return;
-    await wait(700);
-    const cpuTotal = await countHand(state.cpu, CABO.computer);
-    if (dead) return;
-
-    await wait(600);
-    const youWin = yourTotal < cpuTotal;
-    const tie = yourTotal === cpuTotal;
-
-    banner.textContent = `${CABO.you}: ${yourTotal}  ·  ${CABO.computer}: ${cpuTotal}`;
-    await wait(1400);
-    if (dead) return;
-
-    if (youWin) { celebrate(140); burst(['🐱', '🎉', '⭐', '🏆'], 26); sfx.fanfare(); }
-    else if (tie) sfx.win();
-    else sfx.wrong();
-
-    narrate(tie ? CABO.tie(yourTotal) : youWin
-      ? CABO.youWon(yourTotal, cpuTotal)
-      : CABO.cpuWon(cpuTotal, yourTotal), { rate: 0.92 });
-
-    state.phase = 'over';
     busy = false;
-    render();
+    await say(CABO.whoWon);
+    if (dead) return;
+
+    /** His verdict, then ours. */
+    const answer = async (guess) => {
+      clear(controls);
+      const right = guess === truth;
+      sfx[right ? 'correct' : 'wrong']();
+
+      const sums = CABO.totals(yourTotal, cpuTotal);
+      banner.textContent = sums;
+      await say((right ? CABO.countedRight : CABO.countedWrong) + ' ' + sums);
+      if (dead) return;
+
+      if (truth === 'you') { celebrate(140); burst(['🐱', '🎉', '⭐', '🏆'], 26); sfx.fanfare(); }
+      else if (truth === 'tie') sfx.win();
+
+      await say(truth === 'tie' ? CABO.tie(yourTotal)
+        : truth === 'you' ? CABO.youWon(yourTotal, cpuTotal)
+          : CABO.cpuWon(cpuTotal, yourTotal));
+      if (dead) return;
+
+      state.phase = 'over';
+      render();
+    };
+
+    clear(controls);
+    controls.append(
+      el('button', { class: 'btn primary', onClick: () => answer('you') }, CABO.guessMe),
+      el('button', { class: 'btn', onClick: () => answer('cpu') }, CABO.guessCpu),
+      el('button', { class: 'btn', onClick: () => answer('tie') }, CABO.guessTie),
+    );
   }
 
   /* ---------- go ---------- */
 
   function start() {
     deal();
-    busy = false;
+    busy = true;
     render();
-    narrate(CABO.intro);
+    openingLook();
   }
 
   root.append(banner, table, controls);
