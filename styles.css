@@ -1528,3 +1528,21 @@ button {
   font-size: 22px;
   animation: nudge 2.2s ease-in-out infinite;
 }
+
+/* an empty discard pile — you're allowed to take its last card */
+.card.empty {
+  background: transparent;
+  border-style: dashed;
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+}
+
+.cabo-hint {
+  min-height: 24px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink-dim);
+}
+
+.btn.power-btn { background: var(--gold); color: #2a1d05; border-color: transparent; }

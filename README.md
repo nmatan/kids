@@ -254,13 +254,12 @@ gives the computer one last turn before everything is revealed.
 *"משכתם 3. אפשר להחליף אותו באחד הקלפים שלכם, או לזרוק אותו."* The child is never
 looking at a board wondering what to do.
 
-**The opening look is automatic** — the two outside cards, both at once, the way
-it's played here. Nothing to choose and nothing to tap.
+**The opening look** shows the two outside cards — both at once, no choosing,
+the way it's played here — and waits for **✓ סיימתי להציץ**. No timer racing him.
 
-By default they turn back over after a couple of seconds and **remembering them
-is the game**; a small gold dot stays on the two you saw, so you know *which*
-they were without knowing what. Settings can keep them face up for a younger
-child, and set how long the look lasts.
+By default they turn back over afterwards and **remembering them is the game**;
+a small gold dot stays on the two you saw, so you know *which* they were without
+knowing what. Settings can keep them face up for a younger child.
 
 ### Cards with powers
 
@@ -273,7 +272,10 @@ real, since 7/8/9 are cards you don't want to keep anyway:
 | **8** | החלף | trade one of yours for one of the computer's, blind |
 | **9** | משוך שניים | draw two, keep one |
 
-The throw button names the power, so what's on offer is visible. Powers don't
+**Throwing away and using a power are two separate buttons.** `🗑 לזרוק` is
+always there; a power adds an extra `✨ לזרוק ולהציץ` beside it. They were one
+button once, and throwing away a 9 would silently launch משוך שניים — a power
+must never fire when the child only meant to discard. Two tests pin this. Powers don't
 chain — a card kept from משוך שניים can't set off another, or a turn could run
 forever. The computer uses all three too.
 
@@ -299,8 +301,13 @@ Once he answers, he's told whether he **counted** right, and separately what
 actually **happened** — so losing the hand while counting correctly still earns
 the credit.
 
-Every spoken line waits for the previous one to finish before the next begins.
-Fixed pauses chopped sentences in half whenever a line ran longer than the gap.
+Every spoken line waits for the previous one to finish. Fixed pauses chopped
+sentences in half whenever a line ran longer than the gap — the computer's
+description of its own move was the worst affected.
+
+A **hint line** under the table always says what to do right now, separately from
+the banner that narrates what just happened. Sharing one line meant the
+instruction vanished the moment anything was announced.
 
 ---
 
